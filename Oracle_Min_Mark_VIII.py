@@ -49,8 +49,14 @@ class Matrix:
         if (self.mi == 0):
         #_____________________________________________DETECT PREDICTED ACTION_____________________________________________________
             bv = 0
-            if (self.ppcL in self.av): bv += -1
-            if (self.ppcR in self.av): bv += 1
+            if (self.ppcL in self.av):
+                cli = (self.ppcL // self.M)
+                pv = (self.av & set(range((self.M * cli), (self.M * (cli + 1)))))
+                if (len(pv) == 1): bv += -1
+            if (self.ppcR in self.av):
+                cli = (self.ppcR // self.M)
+                pv = (self.av & set(range((self.M * cli), (self.M * (cli + 1)))))
+                if (len(pv) == 1): bv += 1
             self.agency = (bv != 0)
         #___________________________________________ASSIGN PROPRIOCEPTIVE ELEMENTS________________________________________________
             if ((bv == 0) and (len(self.av) > 0)):
@@ -92,8 +98,7 @@ class Matrix:
             if (len(pv) == 1): wi = pv.pop()
             if wi in self.e.keys():
                 for b in cv: self.e[wi][b] = self.adc_val
-            else:
-                self.e[wi] = {b:self.adc_val for b in cv}
+            else: self.e[wi] = {b:self.adc_val for b in cv}
         #_______________________________________PRUNE NETWORK AND COMPUTE METRICS_________________________________________________
         denom = float(max(1, len(iv)))
         em /= denom
@@ -105,7 +110,8 @@ class Matrix:
             self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
         self.tp = (len(self.e.keys()) + sum((len(self.e[a].keys()) * 2) for a in self.e.keys()))
         agency_str = f"\tBV: {bv}\tL:{self.ppcL}  R:{self.ppcR}" if (self.agency) else ""
-        print(f"M{self.mi} EM: {(em * 100.0):.2f}%\tZR: {(zr * 100.0):.2f}%\tMR: {(mr * 100.0):.2f}%" + 
+        if (self.mi == 0): print(f"CY: {self.po.cycle}")
+        print(f"M{self.mi}: EM: {(em * 100.0):.2f}%\tZR: {(zr * 100.0):.2f}%\tMR: {(mr * 100.0):.2f}%" + 
               f"\tEL: {len(self.e.keys())}\tTP: {self.tp}    \tEX: {len(exp)}" + agency_str)
 oracle = Oracle()
 oracle.update()
