@@ -1,13 +1,13 @@
 import random
 class Oracle:
     def __init__(self):
-        self.H = 6#----------------------------------------------------------------------------------------------------------------------HP
-        self.num_clusters = 40#----------------------------------------------------------------------------------------------------------HP
+        self.H = 6#--------------------------------------------------------------------------------------------------------------HP
+        self.num_clusters = 40#--------------------------------------------------------------------------------------------------HP
         self.m = [Matrix(self, a) for a in range(self.H)]
-        #_______________________________________________GENERATE TEST SEQUENCE_________________________________________
-        ts_dim = 10#---------------------------------------------------------------------------------------------------------------------HP
+        #_______________________________________________GENERATE TEST SEQUENCE_____________________________________________________
+        ts_dim = 10#-------------------------------------------------------------------------------------------------------------HP
         ts_range_set = {a for a in range(self.num_clusters)}
-        ts_density = 0.33#---------------------------------------------------------------------------------------------------------------HP
+        ts_density = 0.33#-------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
         self.ts = []
         self.ts_index = self.cycle = 0
@@ -29,8 +29,8 @@ class Matrix:
         self.mi = mi_in
         self.ffi = (self.mi - 1)
         self.fbi = (self.mi + 1) if (self.mi < (self.po.H - 1)) else -1
-        self.M = 50#----------------------------------------------------------------------------------------------------------------------HP
-        self.adc_val = 40#----------------------------------------------------------------------------------------------------------------HP
+        self.M = 50#-------------------------------------------------------------------------------------------------------------HP
+        self.adc_val = 30#-------------------------------------------------------------------------------------------------------HP
         self.m_dim = (self.M * self.po.num_clusters)
         self.e = dict()
         self.ov = self.av = set()
@@ -38,21 +38,21 @@ class Matrix:
         self.ppcL = self.ppcR = -1
         self.agency = False
     def update(self):
-        #___________________________STORE FEEDBACK INPUT AND GENERATE CONTEXT VECTOR_____________________________________________
+        #___________________________STORE FEEDBACK INPUT AND GENERATE CONTEXT VECTOR______________________________________________
         # fbv = self.po.m[self.fbi].av.copy() if (self.fbi != -1) else set()
         fbv = self.po.m[self.fbi].av.copy() if (self.fbi != -1) else self.po.m[0].av.copy()
         fbv = {(a + self.m_dim) for a in fbv}
         cv = (self.av | fbv)
-        #________________________________________COMPUTE PREDICTIVE ACTIVATION___________________________________________________
+        #________________________________________COMPUTE PREDICTIVE ACTIVATION____________________________________________________
         vals = {a:len(set(self.e[a].keys()) & cv) for a in self.e.keys()}
         self.av = {a for a in vals.keys() if (vals[a] == max(vals.values()))}
         if (self.mi == 0):
-        #_____________________________________________DETECT PREDICTED ACTION____________________________________________________
+        #_____________________________________________DETECT PREDICTED ACTION_____________________________________________________
             bv = 0
             if (self.ppcL in self.av): bv += -1
             if (self.ppcR in self.av): bv += 1
             self.agency = (bv != 0)
-        #___________________________________________ASSIGN PROPRIOCEPTIVE ELEMENTS_______________________________________________
+        #___________________________________________ASSIGN PROPRIOCEPTIVE ELEMENTS________________________________________________
             if ((bv == 0) and (len(self.av) > 0)):
                 if ((self.ppcL == -1) and (self.ppcR != -1)): bv = -1
                 if ((self.ppcR == -1) and (self.ppcL != -1)): bv = 1
@@ -64,11 +64,11 @@ class Matrix:
                 if (bv == 1):
                     self.ppcR = random.choice(list(self.av))
                     while (self.ppcR == self.ppcL): self.ppcR = random.choice(list(self.av))
-        #_______________________________________MANIFEST ACTION AND STORE SELECTED INPUT_________________________________________
+        #_______________________________________MANIFEST ACTION AND STORE SELECTED INPUT__________________________________________
             self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + bv) % len(self.po.ts))
             iv = self.po.ts[self.po.ts_index].copy()
         else: iv = self.po.m[self.ffi].ov.copy()
-        #_____________________________________COMPUTE PREDICTION ERROR AND UPDATE CONNECTION PERMANENCE__________________________
+        #_____________________________________COMPUTE PREDICTION ERROR AND UPDATE CONNECTION PERMANENCE___________________________
         exp = set()
         self.ov = set()
         em = zr = mr = 0
@@ -79,8 +79,7 @@ class Matrix:
             if (len(pv) == 0):
                 em += 1.0
                 zr += 1.0
-                ci_mod = (ci - set(self.e.keys()))
-                wi = random.choice(list(ci_mod)) if (len(ci_mod) > 0) else random.choice(list(ci))
+                wi = random.choice(list(ci))
             if (len(pv) > 1):
                 self.ov.add(a)
                 em += (float(len(pv) - 1) / float(self.M - 1))
@@ -95,13 +94,13 @@ class Matrix:
                 for b in cv: self.e[wi][b] = self.adc_val
             else:
                 self.e[wi] = {b:self.adc_val for b in cv}
-        #_______________________________________PRUNE NETWORK AND COMPUTE METRICS_____________________________________________
+        #_______________________________________PRUNE NETWORK AND COMPUTE METRICS_________________________________________________
         denom = float(max(1, len(iv)))
         em /= denom
         zr /= denom
         mr /= denom
         exp = (self.av - exp)
-        if (len(self.e.keys()) > 100):#-------------------------------------------------------------------------------------------------HP
+        if (len(self.e.keys()) > 100):#-----------------------------------------------------------------------------------------HP
             for a in self.e.keys(): self.e[a] = {key:(value - 1) for key, value in self.e[a].items() if (value > 0)}
             self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
         self.tp = (len(self.e.keys()) + sum((len(self.e[a].keys()) * 2) for a in self.e.keys()))
