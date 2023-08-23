@@ -7,7 +7,7 @@ class Oracle:
         #_______________________________________________GENERATE TEST SEQUENCE_____________________________________________________
         ts_dim = 5#--------------------------------------------------------------------------------------------------------------HP
         ts_range_set = {a for a in range(self.num_clusters)}
-        ts_density = 0.33#-------------------------------------------------------------------------------------------------------HP
+        ts_density = 0.53#-------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
         self.ts = []
         self.ts_index = self.cycle = 0
@@ -29,7 +29,7 @@ class Matrix:
         self.mi = mi_in
         self.ffi = (self.mi - 1)
         self.fbi = (self.mi + 1) if (self.mi < (self.po.H - 1)) else -1
-        self.M = 47#-------------------------------------------------------------------------------------------------------------HP
+        self.M = 50#-------------------------------------------------------------------------------------------------------------HP
         self.adc_val = 37#-30----------------------------------------------------------------------------------------------------HP
         self.m_dim = (self.M * self.po.num_clusters)
         self.e = dict()
@@ -109,6 +109,6 @@ class Matrix:
         agency_str = f"\tBV: {bv}\tL:{self.ppcL}  R:{self.ppcR}" if (self.agency) else ""
         if (self.mi == 0): print(f"CY: {self.po.cycle}")
         print(f"M{self.mi}: EM: {(em * 100.0):.2f}%\tZR: {(zr * 100.0):.2f}%\tMR: {(mr * 100.0):.2f}%" + 
-              f"\tEL: {len(self.e.keys())}\tTP: {self.tp}    \tEX: {len(exp)}" + agency_str)
+              f"\tEL: {len(self.e.keys())}   \tTP: {self.tp}    \tEX: {len(exp)}" + agency_str)
 oracle = Oracle()
 oracle.update()
