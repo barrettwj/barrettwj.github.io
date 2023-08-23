@@ -2,10 +2,10 @@ import random
 class Oracle:
     def __init__(self):
         self.H = 6#--------------------------------------------------------------------------------------------------------------HP
-        self.num_clusters = 40#--------------------------------------------------------------------------------------------------HP
+        self.num_clusters = 64#--------------------------------------------------------------------------------------------------HP
         self.m = [Matrix(self, a) for a in range(self.H)]
         #_______________________________________________GENERATE TEST SEQUENCE_____________________________________________________
-        ts_dim = 5#-------------------------------------------------------------------------------------------------------------HP
+        ts_dim = 5#--------------------------------------------------------------------------------------------------------------HP
         ts_range_set = {a for a in range(self.num_clusters)}
         ts_density = 0.33#-------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
@@ -29,8 +29,8 @@ class Matrix:
         self.mi = mi_in
         self.ffi = (self.mi - 1)
         self.fbi = (self.mi + 1) if (self.mi < (self.po.H - 1)) else -1
-        self.M = 50#-------------------------------------------------------------------------------------------------------------HP
-        self.adc_val = 30#-30----------------------------------------------------------------------------------------------------HP
+        self.M = 47#-------------------------------------------------------------------------------------------------------------HP
+        self.adc_val = 37#-30----------------------------------------------------------------------------------------------------HP
         self.m_dim = (self.M * self.po.num_clusters)
         self.e = dict()
         self.ov = self.av = set()
@@ -63,10 +63,10 @@ class Matrix:
                 if (bv == 0): bv = random.choice([-1, 1])
                 if (bv == -1):
                     self.ppcL = random.choice(list(self.av))
-                    while (self.ppcL == self.ppcR): self.ppcL = random.choice(list(self.av))
+                    while (self.ppcL == self.ppcR): self.ppcL = random.choice(list(self.av))#-this could get stuck???!!!
                 if (bv == 1):
                     self.ppcR = random.choice(list(self.av))
-                    while (self.ppcR == self.ppcL): self.ppcR = random.choice(list(self.av))
+                    while (self.ppcR == self.ppcL): self.ppcR = random.choice(list(self.av))#-this could get stuck???!!!
         #_______________________________________MANIFEST ACTION AND STORE SELECTED INPUT__________________________________________
             self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + bv) % len(self.po.ts))
             iv = self.po.ts[self.po.ts_index].copy()
