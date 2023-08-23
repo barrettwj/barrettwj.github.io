@@ -5,7 +5,7 @@ class Oracle:
         self.num_clusters = 40#--------------------------------------------------------------------------------------------------HP
         self.m = [Matrix(self, a) for a in range(self.H)]
         #_______________________________________________GENERATE TEST SEQUENCE_____________________________________________________
-        ts_dim = 10#-------------------------------------------------------------------------------------------------------------HP
+        ts_dim = 5#-------------------------------------------------------------------------------------------------------------HP
         ts_range_set = {a for a in range(self.num_clusters)}
         ts_density = 0.33#-------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
@@ -30,7 +30,7 @@ class Matrix:
         self.ffi = (self.mi - 1)
         self.fbi = (self.mi + 1) if (self.mi < (self.po.H - 1)) else -1
         self.M = 50#-------------------------------------------------------------------------------------------------------------HP
-        self.adc_val = 30#-------------------------------------------------------------------------------------------------------HP
+        self.adc_val = 30#-30----------------------------------------------------------------------------------------------------HP
         self.m_dim = (self.M * self.po.num_clusters)
         self.e = dict()
         self.ov = self.av = set()
@@ -38,27 +38,24 @@ class Matrix:
         self.ppcL = self.ppcR = -1
         self.agency = False
     def update(self):
-        #___________________________STORE FEEDBACK INPUT AND GENERATE CONTEXT VECTOR______________________________________________
+        #___________________________GENERATE CONTEXT VECTOR AND COMPUTE PREDICTIVE ACTIVATION____________________________________
         # fbv = self.po.m[self.fbi].av.copy() if (self.fbi != -1) else set()
         fbv = self.po.m[self.fbi].av.copy() if (self.fbi != -1) else self.po.m[0].av.copy()
         fbv = {(a + self.m_dim) for a in fbv}
         cv = (self.av | fbv)
-        #________________________________________COMPUTE PREDICTIVE ACTIVATION____________________________________________________
         vals = {a:len(set(self.e[a].keys()) & cv) for a in self.e.keys()}
         self.av = {a for a in vals.keys() if (vals[a] == max(vals.values()))}
         if (self.mi == 0):
-        #_____________________________________________DETECT PREDICTED ACTION_____________________________________________________
+        #_____________________________________________DETECT PRORPIOCEPTIVE ACTIVATION____________________________________________
             bv = 0
             if (self.ppcL in self.av):
                 cli = (self.ppcL // self.M)
-                pv = (self.av & set(range((self.M * cli), (self.M * (cli + 1)))))
-                if (len(pv) == 1): bv += -1
+                if (len(self.av & set(range((self.M * cli), (self.M * (cli + 1))))) == 1): bv += -1
             if (self.ppcR in self.av):
                 cli = (self.ppcR // self.M)
-                pv = (self.av & set(range((self.M * cli), (self.M * (cli + 1)))))
-                if (len(pv) == 1): bv += 1
+                if (len(self.av & set(range((self.M * cli), (self.M * (cli + 1))))) == 1): bv += 1
             self.agency = (bv != 0)
-        #___________________________________________ASSIGN PROPRIOCEPTIVE ELEMENTS________________________________________________
+        #___________________________________________PROPRIOCEPTION SYNAPSE DISCOVERY______________________________________________
             if ((bv == 0) and (len(self.av) > 0)):
                 if ((self.ppcL == -1) and (self.ppcR != -1)): bv = -1
                 if ((self.ppcR == -1) and (self.ppcL != -1)): bv = 1
@@ -74,7 +71,7 @@ class Matrix:
             self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + bv) % len(self.po.ts))
             iv = self.po.ts[self.po.ts_index].copy()
         else: iv = self.po.m[self.ffi].ov.copy()
-        #_____________________________________COMPUTE PREDICTION ERROR AND UPDATE CONNECTION PERMANENCE___________________________
+        #_____________________________________COMPUTE PREDICTION ERROR AND OPTIMIZE CONNECTIONS___________________________________
         exp = set()
         self.ov = set()
         em = zr = mr = 0
@@ -91,10 +88,11 @@ class Matrix:
                 em += (float(len(pv) - 1) / float(self.M - 1))
                 mr += 1.0
                 wi = random.choice(list(pv))
+                ovA = (cv & set(self.e[wi].keys()))
                 pv.remove(wi)
                 for b in pv:
-                    tv = (cv & set(self.e[b].keys()) & self.e[wi].keys())
-                    if (len(tv) > 0): self.e[b][random.choice(list(tv))] = 0
+                    ovB = (set(self.e[b].keys()) & ovA)
+                    if (len(ovB) > 0): self.e[b][random.choice(list(ovB))] = 0
             if (len(pv) == 1): wi = pv.pop()
             if wi in self.e.keys():
                 for b in cv: self.e[wi][b] = self.adc_val
@@ -105,9 +103,8 @@ class Matrix:
         zr /= denom
         mr /= denom
         exp = (self.av - exp)
-        if (len(self.e.keys()) > 100):#-----------------------------------------------------------------------------------------HP
-            for a in self.e.keys(): self.e[a] = {key:(value - 1) for key, value in self.e[a].items() if (value > 0)}
-            self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
+        for a in self.e.keys(): self.e[a] = {key:(value - 1) for key, value in self.e[a].items() if (value > 0)}
+        if (len(self.e.keys()) > 500): self.e = {key:value for key, value in self.e.items() if (len(value.keys()) > 0)}#---------HP
         self.tp = (len(self.e.keys()) + sum((len(self.e[a].keys()) * 2) for a in self.e.keys()))
         agency_str = f"\tBV: {bv}\tL:{self.ppcL}  R:{self.ppcR}" if (self.agency) else ""
         if (self.mi == 0): print(f"CY: {self.po.cycle}")
