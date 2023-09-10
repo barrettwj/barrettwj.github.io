@@ -7,14 +7,14 @@ class Oracle:
         self.M = 49#-------------------------------------------------------------------------------------------------------------HP
         self.N = (self.K * self.M)
         self.PV = 77#------------------------------------------------------------------------------------------------------------HP
-        max_pct = 1.0#-----------------------------------------------------------------------------------------------------------HP
-        self.C = math.floor(float(self.N) * max_pct)
+        # max_pct = 1.0#-----------------------------------------------------------------------------------------------------------HP
+        # self.C = math.floor(float(self.N) * max_pct)
         self.m = [Matrix(self, a) for a in range(self.H)]
         #__________________________________________________________________________________________________________________________
         ts_dim = 5#--------------------------------------------------------------------------------------------------------------HP
         ts_range_set = {a for a in range(self.K)}
         ts_density = 0.33#-------------------------------------------------------------------------------------------------------HP
-        ts_card = round(float(len(ts_range_set)) * ts_density)
+        ts_card = math.floor(float(len(ts_range_set)) * ts_density)
         self.ts = []
         self.ts_index = self.cycle = 0
         while (len(self.ts) < ts_dim):
@@ -81,14 +81,12 @@ class Matrix:
             iv = self.po.ts[self.po.ts_index].copy()
         else: iv = self.po.m[self.ffi].ov.copy()
         #_________________________________________________________________________________________________________________________
-        exp = set()
         self.ov = set()
         emr = len(self.conf ^ iv)
         em = zr = mr = 0
         for a in iv:
             ci = set(range((self.po.M * a), (self.po.M * (a + 1))))
             pv = (self.av & ci)
-            exp |= pv
             if (len(pv) == 0):
                 em += 1.0
                 zr += 1.0
@@ -113,13 +111,12 @@ class Matrix:
         em /= den
         zr /= den
         mr /= den
-        exp = (self.av - exp)
         for a in self.e.keys(): self.e[a] = {key:(value - 1) for key, value in self.e[a].items() if (value > 0)}
         # if (len(self.e.keys()) > self.po.C): self.e = {key:value for key, value in self.e.items() if (len(value.keys()) > 0)}
         self.tp = sum(((len(self.e[a].keys()) * 2) + 1) for a in self.e.keys())
         agency_str = f"\tBV: {bv}\tL:{self.ppcL}  R:{self.ppcR}" if ((self.mi == 0) and (self.agency)) else ""
         # if (self.mi == 0): print(f"CY: {self.po.cycle}")
         print(f"M{self.mi}: EM: {(em * 100.0):.2f}%\tZR: {(zr * 100.0):.2f}%\tMR: {(mr * 100.0):.2f}%" + 
-              f"\tEL: {len(self.e.keys())}   \tEX: {len(exp)}   \tER: {emr}   \tTP: {self.tp}" + agency_str)
+              f"\tEL: {len(self.e.keys())}\tER: {emr}\tTP: {self.tp}" + agency_str)
 oracle = Oracle()
 oracle.update()
