@@ -51,7 +51,6 @@ class Matrix:
             cli = (a // self.po.M)
             if (len(self.av & set(range((self.po.M * cli), (self.po.M * (cli + 1))))) == 1): self.conf.add(cli)
         if (self.mi == 0):
-            #______________________________________________________________________________________________________________________
             bv = 0
             if (self.ppcL in self.conf): bv += -1
             if (self.ppcR in self.conf): bv += 1
@@ -67,18 +66,10 @@ class Matrix:
                 if (bv == 1):
                     tv = (self.conf - {self.ppcL})
                     self.ppcR = random.choice(list(tv)) if (len(tv) > 0) else -1
-            else:
-                if (self.ppcL in self.conf):
-                    ci = set(range((self.po.M * self.ppcL), (self.po.M * (self.ppcL + 1))))
-                    b = random.choice(list(ci))
-                    for a in cv: self.e[b][a] = self.po.PV
-                if (self.ppcR in self.conf):
-                    ci = set(range((self.po.M * self.ppcR), (self.po.M * (self.ppcR + 1))))
-                    b = random.choice(list(ci))
-                    for a in cv: self.e[b][a] = self.po.PV
-            #_____________________________________________________________________________________________________________________
             self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + bv) % len(self.po.ts))
             iv = self.po.ts[self.po.ts_index].copy()
+            if (self.ppcL in self.conf): iv.add(self.ppcL)
+            if (self.ppcR in self.conf): iv.add(self.ppcR)
         else: iv = self.po.m[self.ffi].ov.copy()
         #_________________________________________________________________________________________________________________________
         self.ov = set()
@@ -91,12 +82,14 @@ class Matrix:
                 em += 1.0
                 zr += 1.0
                 ci_mod = [b for b in (ci & set(self.e.keys())) if (len(self.e[b].keys()) == 0)]
+                # ci_mod = []
                 wi = random.choice(list(ci)) if (len(ci_mod) == 0) else random.choice(ci_mod)
             if (len(pv) > 1):
                 self.ov.add(a)
                 em += (float(len(pv) - 1) / float(self.po.M - 1))
                 mr += 1.0
                 cands = [b for b in pv if (len(self.e[b].keys()) == min(len(self.e[b].keys()) for b in pv))]
+                # cands = []
                 wi = random.choice(list(pv)) if (len(cands) == 0) else random.choice(cands)
                 for b in pv:
                     if (b != wi):
