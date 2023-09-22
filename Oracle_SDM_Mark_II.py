@@ -44,7 +44,7 @@ class Matrix:
         self.last_index_A = self.last_index_B = -1
         self.iv = self.ov = self.prototype_v = self.prev_v = self.pv = set()
         self.prototype_delta_max = 0#----------------------------------------------------------------------------------------------HP
-        self.sample_min = 15#-musn't be set too high!!!!----------------------------------------------------------------------------HP
+        self.sample_min = 6#-musn't be set too high!!!!----------------------------------------------------------------------------HP
         self.sample_pct = 0.04#-----------------------------------------------------------------------------------------------------HP
         self.write_delta = 50#-----------------------------------------------------------------------------------------------------HP
         num_steps_to_max = 100#-----------------------------------------------------------------------------------------------------HP
@@ -94,13 +94,12 @@ class Matrix:
             for i, a in enumerate(self.mem[self.last_index_A][1]):
                 if ((i in self.iv) and ((a + self.write_delta) <= self.cv_max)): self.mem[self.last_index_A][1][i] += self.write_delta
                 if ((i not in self.iv) and ((a - self.write_delta) >= self.cv_min)): self.mem[self.last_index_A][1][i] -= self.write_delta
-        self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
-        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
-        fbv = self.po.m[self.fbi].pv.copy()
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        # fbv = self.po.m[self.fbi].pv.copy()
+        self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
         # self.prototype_v = (self.pv | {(self.po.K + a) for a in fbv})
         # self.prototype_v = (self.prototype_v | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
         # self.prototype_v = (self.prototype_v | {(self.po.K + a) for a in fbv})
-        self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
         avail_indices = (self.poss_indices - set(self.mem.keys()) - {self.last_index_A, self.last_index_B})
         self.last_index_B = random.choice(list(avail_indices))
         write_v = self.prototype_v.copy()
@@ -140,11 +139,11 @@ class Matrix:
         self.last_index_A = random.choice(list(cands)) if (len(cands) > 0) else random.choice(list(avail_indices))
         if ((self.last_index_A not in self.mem.keys()) or (dist != 0)):
             self.mem[self.last_index_A] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
-        self.pv = {i for i, a in enumerate(self.mem[self.last_index_A][1]) if (a > 0)}
-        # self.pv = {i for i, a in enumerate(self.read_v) if (a > 0)}
+        self.pv = {i for i, a in enumerate(self.read_v) if (a > 0)}
         den = float(max(1, (len(self.iv) + len(self.pv))))
         self.ov = (self.iv ^ self.pv)
         erm = ((float(len(self.ov)) / den) * 100.0)
+        self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tPPC: {self.ppc_signal}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
 oracle = Oracle()
