@@ -1,14 +1,13 @@
 import random
-import math
 class Oracle:
     def __init__(self):
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
         self.K = 128#--------------------------------------------------------------------------------------------------------------HP
-        self.Z = 100#-------------------------------------------------------------------------------------------------------------HP
+        self.Z = 100#--------------------------------------------------------------------------------------------------------------HP
         self.pv_min = 10#----------------------------------------------------------------------------------------------------------HP
         self.pv_range = 3.70#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
-        self.ppcv_dim = 20#--------------------------------------------------------------------------------------------------------HP
+        self.ppcv_dim = 10#--------------------------------------------------------------------------------------------------------HP
         self.ppcv_L = set(range((self.K - (self.ppcv_dim * 2)), (self.K - self.ppcv_dim)))
         self.ppcv_R = set(range((self.K - self.ppcv_dim), self.K))
         self.m = [Matrix(self, a) for a in range(self.H)]
@@ -45,9 +44,9 @@ class Matrix:
         self.iv = self.ov = self.prototype_v = self.prev_v = self.pv = set()
         self.prototype_delta_max = 0#----------------------------------------------------------------------------------------------HP
         self.sample_min = 6#-musn't be set too high!!!!----------------------------------------------------------------------------HP
-        self.sample_pct = 0.04#-----------------------------------------------------------------------------------------------------HP
+        self.sample_pct = 0.04#----------------------------------------------------------------------------------------------------HP
         self.write_delta = 50#-----------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 100#-----------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 100#----------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta * num_steps_to_max)
         self.cv_min = -(self.write_delta * (num_steps_to_max - 1))
         self.ppc_signal = 0
@@ -64,7 +63,7 @@ class Matrix:
                 self.ppc_signal += 1
                 self.agency = True
             confluence = ((self.agency == True) and (self.ppc_signal == 0))
-            if (((self.agency == False) and (random.randrange(1000000) < 500000)) or confluence):#-motor babble-----------------HP
+            if (((self.agency == False) and (random.randrange(1000000) < 500000)) or confluence):#-motor babble--------------------HP
                 self.ppc_signal = -1 if (random.randrange(1000000) < 500000) else 1
             self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + self.ppc_signal) % len(self.po.ts))
             self.iv = self.po.ts[self.po.ts_index].copy()
@@ -97,14 +96,11 @@ class Matrix:
         fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
         # fbv = self.po.m[self.fbi].pv.copy()
         self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
-        # self.prototype_v = (self.pv | {(self.po.K + a) for a in fbv})
-        # self.prototype_v = (self.prototype_v | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
-        # self.prototype_v = (self.prototype_v | {(self.po.K + a) for a in fbv})
         avail_indices = (self.poss_indices - set(self.mem.keys()) - {self.last_index_A, self.last_index_B})
         self.last_index_B = random.choice(list(avail_indices))
         write_v = self.prototype_v.copy()
         self.mem[self.last_index_B] = [write_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
-        num_attempts_max = 10#----------------------------------------------------------------------------------------------------HP
+        num_attempts_max = 10#-----------------------------------------------------------------------------------------------------HP
         num_attempts = 0
         while((len(self.prototype_v ^ self.prev_v) > self.prototype_delta_max) and (num_attempts < num_attempts_max)):
             si = list(self.mem.keys())
