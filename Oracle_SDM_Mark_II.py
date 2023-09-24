@@ -5,7 +5,7 @@ class Oracle:
         self.K = 67#---------------------------------------------------------------------------------------------------------------HP
         self.Z = 201#--------------------------------------------------------------------------------------------------------------HP
         self.pv_min = 41#-41-------------------------------------------------------------------------------------------------------HP
-        self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
+        self.pv_range = 2.73#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ppcv_dim = 5#-5-------------------------------------------------------------------------------------------------------HP
         self.ppcv_L = set(range((self.K - (self.ppcv_dim * 2)), (self.K - self.ppcv_dim)))
@@ -47,17 +47,18 @@ class Matrix:
         self.sample_min = 17#-15-musn't be set too high????!!!!--------------------------------------------------------------------HP
         self.sample_pct = 0.04#-0.04-----------------------------------------------------------------------------------------------HP
         self.aa_factor = 3#-3------------------------------------------------------------------------------------------------------HP
-        self.write_delta = 1001#-1001----------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 41#-41--------------------------------------------------------------------------------------------------HP
-        self.cv_max = (self.write_delta * num_steps_to_max)
-        self.cv_min = -(self.write_delta * (num_steps_to_max - 1))
+        self.write_delta_max = 1001#-1001------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 61#-61--------------------------------------------------------------------------------------------------HP
+        self.cv_max = (self.write_delta_max * num_steps_to_max)
+        self.cv_min = -(self.write_delta_max * (num_steps_to_max - 1))
         self.ppc_signal = self.tp = 0
         self.agency = False
     def update(self):
-        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
-        fbv = self.po.m[self.fbi].pv.copy()
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
+        # fbv = self.po.m[self.fbi].pv.copy()
         #_____________________________________________________________________________________________________________________________
-        self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
+        # self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
+        self.prototype_v = (self.iv | {(self.po.K + a) for a in fbv})
         # self.prototype_v = (self.pv | {(self.po.K + a) for a in fbv})#----------why doesn't this work????
         #_____________________________________________________________________________________________________________________________
         avail_indices = (self.poss_indices - set(self.mem.keys()))
@@ -65,12 +66,12 @@ class Matrix:
                                                         random.randrange(self.po.pv_min, self.po.pv_max)]
         #_____________________________________________________________________________________________________________________________
         aa_ct = 0
+        num_samples_min = max(self.sample_min, round(float(len(self.mem.keys())) * self.sample_pct))
         self.read_comp_v = self.blank_cv.copy()
         read_comp_v_den = 0
         while((len(self.prototype_v ^ self.prev_v) > 0) and (aa_ct < self.aa_factor)):
             si = list(self.mem.keys())
             random.shuffle(si)
-            num_samples_min = max(self.sample_min, round(float(len(self.mem.keys())) * self.sample_pct))
             skip = set()
             r = 0
             avg_vA_dict = dict()
@@ -100,13 +101,14 @@ class Matrix:
         dist = min(len(self.mem[a][0] ^ self.prototype_v) for a in self.mem.keys()) if (len(self.mem.keys()) > 0) else -1
         cands = {a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.prototype_v) == dist)}
         avail_indices = (self.poss_indices - set(self.mem.keys()))
-        wi = random.choice(list(cands)) if (len(cands) > 0) else random.choice(list(avail_indices))
-        if ((wi not in self.mem.keys()) or (dist != 0)):
-            self.mem[wi] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        rel_idx = random.choice(list(cands)) if (len(cands) > 0) else random.choice(list(avail_indices))
+        if ((rel_idx not in self.mem.keys()) or (dist != 0)):
+            # self.mem[rel_idx] = [self.prototype_v.copy(), self.read_v.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]#---this may cause issues???
+            self.mem[rel_idx] = [self.prototype_v.copy(), self.read_comp_v.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         # ref_v = self.read_v.copy()#----------which one is better and why???
         ref_v = self.read_comp_v.copy()#----------which one is better and why???
         norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
-        self.conf_v = [(float(a) / norm) for a in ref_v]
+        self.conf_v = [(float(abs(a)) / norm) for a in ref_v]
         self.pv = {i for i, a in enumerate(ref_v) if (a > 0)}
         #____________________________________________________________________________________________________________________________
         if (self.mi == 0):
@@ -127,16 +129,17 @@ class Matrix:
             if (self.ppc_signal == 1): self.iv |= self.po.ppcv_R
         else: self.iv = self.po.m[self.ffi].ov.copy()
         #____________________________________________________________________________________________________________________________
-        #-------TODO: modulate self.write_delta proportional to prediction confidence
-        for i, a in enumerate(self.mem[wi][1]):
-            if ((i in self.iv) and ((a + self.write_delta) <= self.cv_max)): self.mem[wi][1][i] += self.write_delta
-            if ((i not in self.iv) and ((a - self.write_delta) >= self.cv_min)): self.mem[wi][1][i] -= self.write_delta
+        #-------TODO: modulate self.write_delta proportional to prediction confidence and RL signals
+        # write_delta = round(float(self.write_delta_max) * )
+        for i, a in enumerate(self.mem[rel_idx][1]):
+            if ((i in self.iv) and ((a + self.write_delta_max) <= self.cv_max)): self.mem[rel_idx][1][i] += self.write_delta_max
+            if ((i not in self.iv) and ((a - self.write_delta_max) >= self.cv_min)): self.mem[rel_idx][1][i] -= self.write_delta_max
         #____________________________________________________________________________________________________________________________
         self.ov = (self.iv ^ self.pv)
         den = float(max(1, (len(self.iv) + len(self.pv))))
         erm = ((float(len(self.ov)) / den) * 100.0)
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
-        agency_str = f"\tPPC: {self.ppc_signal}\t{wi}" if ((self.mi == 0) and (self.agency)) else ""
+        agency_str = f"\tPPC: {self.ppc_signal}\t{rel_idx}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #___________________________________________________________________________________________________________________________
         while ((len(self.mem.keys()) + 1) > self.po.Z):
