@@ -14,7 +14,7 @@ class Oracle:
         #____________________________________________________________________________________________________________________________
         ts_dim = 5#----------------------------------------------------------------------------------------------------------------HP
         ts_range_set = (set(range(self.K)) - self.ppcv_L - self.ppcv_R)
-        ts_density = 0.13#---------------------------------------------------------------------------------------------------------HP
+        ts_density = 0.73#---------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
         self.ts = []
         self.ts_index = self.cycle = 0
@@ -42,12 +42,11 @@ class Matrix:
         self.read_comp_v = self.blank_cv.copy()
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
-        self.idxA = self.idxB = -1
         self.iv = self.ov = self.prototype_v = self.prev_v = self.pv = set()
-        self.sample_min = 15#-musn't be set too high????!!!!-----------------------------------------------------------------------HP
-        self.sample_pct = 0.04#----------------------------------------------------------------------------------------------------HP
-        self.write_delta = 5001#---------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 101#----------------------------------------------------------------------------------------------------HP
+        self.sample_min = 15#-15-musn't be set too high????!!!!-----------------------------------------------------------------------HP
+        self.sample_pct = 0.04#-0.04---------------------------------------------------------------------------------------------------HP
+        self.write_delta = 5001#-5001--------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 101#-101---------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta * num_steps_to_max)
         self.cv_min = -(self.write_delta * (num_steps_to_max - 1))
         self.ppc_signal = self.tp = 0
@@ -55,7 +54,7 @@ class Matrix:
     def update(self):
         while ((len(self.mem.keys()) + 1) > self.po.Z):
             remove_indices = set()
-            si = [a for a in self.mem.keys() if (a not in {self.idxA, self.idxB})]
+            si = [a for a in self.mem.keys()]
             random.shuffle(si)
             for a in si:
                 flag = True
@@ -71,13 +70,13 @@ class Matrix:
                 ri = random.choice(list(remove_indices))
                 del self.mem[ri]
                 remove_indices.remove(ri)
-        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
         # fbv = self.po.m[self.fbi].pv.copy()
         self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
         # self.prototype_v = (self.pv | {(self.po.K + a) for a in fbv})#----------why doesn't this work????
-        avail_indices = (self.poss_indices - set(self.mem.keys()) - {self.idxA, self.idxB})
-        self.idxB = random.choice(list(avail_indices))
-        self.mem[self.idxB] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        if (len(self.mem.keys()) < self.po.Z):
+            avail_indices = (self.poss_indices - set(self.mem.keys()))
+            self.mem[random.choice(list(avail_indices))] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         num_attempts_max = 3#------------------------------------------------------------------------------------------------------HP
         num_attempts = 0
         self.read_comp_v = self.blank_cv.copy()
@@ -114,13 +113,12 @@ class Matrix:
             num_attempts += 1
         dist = min(len(self.mem[a][0] ^ self.prototype_v) for a in self.mem.keys()) if (len(self.mem.keys()) > 0) else -1
         cands = {a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.prototype_v) == dist)}
-        avail_indices = (self.poss_indices - set(self.mem.keys()) - {self.idxA, self.idxB})
-        agency_str = f"\tPPC: {self.ppc_signal}\t{self.idxA}" if ((self.mi == 0) and (self.agency)) else ""
-        self.idxA = random.choice(list(cands)) if (len(cands) > 0) else random.choice(list(avail_indices))
-        if ((self.idxA not in self.mem.keys()) or (dist != 0)):
-            self.mem[self.idxA] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
-        # self.pv = {i for i, a in enumerate(self.read_v) if (a > 0)}
-        self.pv = {i for i, a in enumerate(self.read_comp_v) if (a > 0)}
+        avail_indices = (self.poss_indices - set(self.mem.keys()))
+        wi = random.choice(list(cands)) if (len(cands) > 0) else random.choice(list(avail_indices))
+        if ((wi not in self.mem.keys()) or (dist != 0)):
+            self.mem[wi] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        # self.pv = {i for i, a in enumerate(self.read_v) if (a > 0)}#-----------------which one is better and why???
+        self.pv = {i for i, a in enumerate(self.read_comp_v) if (a > 0)}#----------which one is better and why???
         if (self.mi == 0):
             self.ppc_signal = 0
             self.agency = False
@@ -131,8 +129,6 @@ class Matrix:
                 self.ppc_signal += 1
                 self.agency = True
             both = ((self.agency == True) and (self.ppc_signal == 0))
-            # if (both or ((random.randrange(1000000) < 100000) and (self.agency == False) and
-            #      (len(self.pv) >= self.po.ppcv_dim))):#-motor babble-----------------------------------------------------HP_THIS CAUSES ISSUES!!!!!
             if (both or ((random.randrange(1000000) < 500000) and (self.agency == False))):#-motor babble-------------------------HP
                 self.ppc_signal = random.choice([-1, 1])
             self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + self.ppc_signal) % len(self.po.ts))
@@ -140,14 +136,14 @@ class Matrix:
             if (self.ppc_signal == -1): self.iv |= self.po.ppcv_L
             if (self.ppc_signal == 1): self.iv |= self.po.ppcv_R
         else: self.iv = self.po.m[self.ffi].ov.copy()
-        if (self.idxA != -1):
-            for i, a in enumerate(self.mem[self.idxA][1]):
-                if ((i in self.iv) and ((a + self.write_delta) <= self.cv_max)): self.mem[self.idxA][1][i] += self.write_delta
-                if ((i not in self.iv) and ((a - self.write_delta) >= self.cv_min)): self.mem[self.idxA][1][i] -= self.write_delta
+        for i, a in enumerate(self.mem[wi][1]):
+            if ((i in self.iv) and ((a + self.write_delta) <= self.cv_max)): self.mem[wi][1][i] += self.write_delta
+            if ((i not in self.iv) and ((a - self.write_delta) >= self.cv_min)): self.mem[wi][1][i] -= self.write_delta
         self.ov = (self.iv ^ self.pv)
         den = float(max(1, (len(self.iv) + len(self.pv))))
         erm = ((float(len(self.ov)) / den) * 100.0)
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
+        agency_str = f"\tPPC: {self.ppc_signal}\t{wi}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
 oracle = Oracle()
 oracle.update()
