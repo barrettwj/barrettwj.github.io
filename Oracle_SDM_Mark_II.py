@@ -52,31 +52,16 @@ class Matrix:
         self.ppc_signal = self.tp = 0
         self.agency = False
     def update(self):
-        while ((len(self.mem.keys()) + 1) > self.po.Z):
-            remove_indices = set()
-            si = [a for a in self.mem.keys()]
-            random.shuffle(si)
-            for a in si:
-                flag = True
-                for i, b in enumerate(self.mem[a][1]):
-                    if (b > 0): self.mem[a][1][i] -= 1
-                    if (b < 0): self.mem[a][1][i] += 1
-                    if(flag and (self.mem[a][1][i] != 0)): flag = False
-                if flag:
-                    # remove_indices.add(a)
-                    if (self.mem[a][2] > 0): self.mem[a][2] -= 1
-                    else: remove_indices.add(a)
-            while (((len(self.mem.keys()) + 1) > self.po.Z) and (len(remove_indices) > 0)):
-                ri = random.choice(list(remove_indices))
-                del self.mem[ri]
-                remove_indices.remove(ri)
         fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
         # fbv = self.po.m[self.fbi].pv.copy()
+        #_____________________________________________________________________________________________________________________________
         self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
         # self.prototype_v = (self.pv | {(self.po.K + a) for a in fbv})#----------why doesn't this work????
-        if (len(self.mem.keys()) < self.po.Z):
-            avail_indices = (self.poss_indices - set(self.mem.keys()))
-            self.mem[random.choice(list(avail_indices))] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        #____________________________________________________________________________________________________________________________
+        avail_indices = (self.poss_indices - set(self.mem.keys()))
+        self.mem[random.choice(list(avail_indices))] = [self.prototype_v.copy(), self.blank_cv.copy(),
+                                                        random.randrange(self.po.pv_min, self.po.pv_max)]
+        #______________________________________________________________________________________________________________________________
         num_attempts_max = 3#------------------------------------------------------------------------------------------------------HP
         num_attempts = 0
         self.read_comp_v = self.blank_cv.copy()
@@ -119,6 +104,7 @@ class Matrix:
             self.mem[wi] = [self.prototype_v.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         # self.pv = {i for i, a in enumerate(self.read_v) if (a > 0)}#-----------------which one is better and why???
         self.pv = {i for i, a in enumerate(self.read_comp_v) if (a > 0)}#----------which one is better and why???
+        #_____________________________________________________________________________________________________________________
         if (self.mi == 0):
             self.ppc_signal = 0
             self.agency = False
@@ -136,14 +122,35 @@ class Matrix:
             if (self.ppc_signal == -1): self.iv |= self.po.ppcv_L
             if (self.ppc_signal == 1): self.iv |= self.po.ppcv_R
         else: self.iv = self.po.m[self.ffi].ov.copy()
+        #___________________________________________________________________________________________________________________
         for i, a in enumerate(self.mem[wi][1]):
             if ((i in self.iv) and ((a + self.write_delta) <= self.cv_max)): self.mem[wi][1][i] += self.write_delta
             if ((i not in self.iv) and ((a - self.write_delta) >= self.cv_min)): self.mem[wi][1][i] -= self.write_delta
+        #__________________________________________________________________________________________________________________
         self.ov = (self.iv ^ self.pv)
         den = float(max(1, (len(self.iv) + len(self.pv))))
         erm = ((float(len(self.ov)) / den) * 100.0)
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tPPC: {self.ppc_signal}\t{wi}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
+        #__________________________________________________________________________________________________________________
+        while ((len(self.mem.keys()) + 1) > self.po.Z):
+            remove_indices = set()
+            si = [a for a in self.mem.keys()]
+            random.shuffle(si)
+            for a in si:
+                flag = True
+                for i, b in enumerate(self.mem[a][1]):
+                    if (b > 0): self.mem[a][1][i] -= 1
+                    if (b < 0): self.mem[a][1][i] += 1
+                    if(flag and (self.mem[a][1][i] != 0)): flag = False
+                if flag:
+                    # remove_indices.add(a)
+                    if (self.mem[a][2] > 0): self.mem[a][2] -= 1
+                    else: remove_indices.add(a)
+            while (((len(self.mem.keys()) + 1) > self.po.Z) and (len(remove_indices) > 0)):
+                ri = random.choice(list(remove_indices))
+                del self.mem[ri]
+                remove_indices.remove(ri)
 oracle = Oracle()
 oracle.update()
