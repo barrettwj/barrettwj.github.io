@@ -55,7 +55,7 @@ class Matrix:
         self.agency = False
     def update(self):
         # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
-        fbv = self.po.m[self.fbi].pv.copy()
+        fbv = self.po.m[self.fbi].pv.copy()#-seems to stabilize beh/att???Idk???
         #_____________________________________________________________________________________________________________________________
         self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
         # self.prototype_v = (self.iv | {(self.po.K + a) for a in fbv})
@@ -130,11 +130,12 @@ class Matrix:
             if (self.ppc_signal == 1): self.iv |= self.po.ppcv_R
         else: self.iv = self.po.m[self.ffi].ov.copy()
         #____________________________________________________________________________________________________________________________
-        #-------TODO: modulate self.write_delta proportional to prediction confidence and RL signals
-        # write_delta = round(float(self.write_delta_max) * )
+        #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
+        # write_delta = self.write_delta_max
         for i, a in enumerate(self.mem[rel_idx][1]):
-            if ((i in self.iv) and ((a + self.write_delta_max) <= self.cv_max)): self.mem[rel_idx][1][i] += self.write_delta_max
-            if ((i not in self.iv) and ((a - self.write_delta_max) >= self.cv_min)): self.mem[rel_idx][1][i] -= self.write_delta_max
+            write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max))#----------------------Is this ideal???
+            if ((i in self.iv) and ((a + write_delta) <= self.cv_max)): self.mem[rel_idx][1][i] += write_delta
+            if ((i not in self.iv) and ((a - write_delta) >= self.cv_min)): self.mem[rel_idx][1][i] -= write_delta
         #____________________________________________________________________________________________________________________________
         self.ov = (self.iv ^ self.pv)
         den = float(max(1, (len(self.iv) + len(self.pv))))
