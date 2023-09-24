@@ -54,11 +54,11 @@ class Matrix:
         self.ppc_signal = self.tp = 0
         self.agency = False
     def update(self):
-        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
-        # fbv = self.po.m[self.fbi].pv.copy()
+        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
+        fbv = self.po.m[self.fbi].pv.copy()
         #_____________________________________________________________________________________________________________________________
-        # self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
-        self.prototype_v = (self.iv | {(self.po.K + a) for a in fbv})
+        self.prototype_v = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
+        # self.prototype_v = (self.iv | {(self.po.K + a) for a in fbv})
         # self.prototype_v = (self.pv | {(self.po.K + a) for a in fbv})#----------why doesn't this work????
         #_____________________________________________________________________________________________________________________________
         avail_indices = (self.poss_indices - set(self.mem.keys()))
@@ -124,6 +124,7 @@ class Matrix:
             if (both or ((random.randrange(1000000) < 500000) and (self.agency == False))):#-motor babble--------------------------HP
                 self.ppc_signal = random.choice([-1, 1])
             self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + self.ppc_signal) % len(self.po.ts))
+            #------TODO: encode reward signals and prediction confidence into input
             self.iv = self.po.ts[self.po.ts_index].copy()
             if (self.ppc_signal == -1): self.iv |= self.po.ppcv_L
             if (self.ppc_signal == 1): self.iv |= self.po.ppcv_R
@@ -151,7 +152,7 @@ class Matrix:
                 for i, b in enumerate(self.mem[a][1]):
                     if (b > 0): self.mem[a][1][i] -= 1
                     if (b < 0): self.mem[a][1][i] += 1
-                    if(flag and (b != 0)): flag = False
+                    if(flag and (self.mem[a][1][i] != 0)): flag = False
                 if flag:
                     # remove_indices.add(a)
                     if (self.mem[a][2] > 0): self.mem[a][2] -= 1
