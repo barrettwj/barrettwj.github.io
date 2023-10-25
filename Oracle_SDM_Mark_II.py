@@ -136,12 +136,10 @@ class Matrix:
             si = list(self.mem.keys())
             random.shuffle(si)
             for a in si:
-                flag = True
                 for i, b in enumerate(self.mem[a][1]):
                     if (b > 0): self.mem[a][1][i] -= 1
                     if (b < 0): self.mem[a][1][i] += 1
-                    if(flag and (self.mem[a][1][i] != 0)): flag = False
-                if flag:
+                if all((b == 0) for b in self.mem[a][1]):
                     # remove_indices.add(a)
                     if (self.mem[a][2] > 0): self.mem[a][2] -= 1
                     else: remove_indices.add(a)
