@@ -4,10 +4,10 @@ class Oracle:
         self.H = 6#----------------------------------------------------------------------------------------------------------------HP
         self.K = 67#---------------------------------------------------------------------------------------------------------------HP
         self.Z = 257#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 21#-41-------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 111#-41------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
-        self.ppcv_dim = 10#-5-------------------------------------------------------------------------------------------------------HP
+        self.ppcv_dim = 5#-5------------------------------------------------------------------------------------------------------HP
         self.ppcv_L = set(range((self.K - (self.ppcv_dim * 2)), (self.K - self.ppcv_dim)))
         self.ppcv_R = set(range((self.K - self.ppcv_dim), self.K))
         self.m = [Matrix(self, a) for a in range(self.H)]
@@ -42,11 +42,11 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.pv = set()
-        self.sample_min = 13#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
-        self.sample_pct = 0.05#-0.04-0.05----------------------------------------------------------------------------------------------HP
-        self.aa_factor = 20#-10-----------------------------------------------------------------------------------------------------HP
-        self.write_delta_max = 507#-507-musn't be set too low???!!!------------------------------------------------------------------HP
-        num_steps_to_max = 31#-67--------------------------------------------------------------------------------------------------HP
+        self.sample_min = 9#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
+        self.sample_pct = 0.02#-0.04-0.05-----------------------------------------------------------------------------------------HP
+        self.aa_factor = 10#-10---------------------------------------------------------------------------------------------------HP
+        self.write_delta_max = 507#-507-musn't be set too low???!!!---------------------------------------------------------------HP
+        num_steps_to_max = 37#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
         self.cv_min = -(self.write_delta_max * (num_steps_to_max - 1))
         self.ppc_signal = self.tp = self.rel_idx = 0
@@ -62,7 +62,6 @@ class Matrix:
         aa_ct = 0
         num_samples_min = max(self.sample_min, round(float(len(self.mem)) * self.sample_pct))
         # self.read_comp_v = self.blank_cv.copy()
-        # read_comp_v_den = 0
         while((len(self.Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
             si = list(self.mem.keys())
             random.shuffle(si)
@@ -82,7 +81,6 @@ class Matrix:
                             if (b not in tav): avg_vA_dict[b] -= 1
                         for i, b in enumerate(self.mem[a][1]): self.read_v[i] += b
                         # for i, b in enumerate(self.mem[a][1]): self.read_comp_v[i] += b
-                        # read_comp_v_den += 1
                         self.mem[a][2] = random.randrange(self.po.pv_min, self.po.pv_max)
                         skip.add(a)
                 si = [c for c in si if (c not in skip)]
@@ -95,8 +93,8 @@ class Matrix:
         self.rel_idx = random.choice(cands)
         ref_v = self.read_v.copy()#----------which one is better and why???
         # ref_v = self.read_comp_v.copy()#----------which one is better and why???
-        norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
-        conf_v = [(float(abs(a)) / norm) for a in ref_v]
+        # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
+        # conf_v = [(float(abs(a)) / norm) for a in ref_v]
         self.pv = {i for i, a in enumerate(ref_v) if (a > 0)}
         #____________________________________________________________________________________________________________________________
         if (self.mi == 0):
