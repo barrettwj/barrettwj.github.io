@@ -43,10 +43,10 @@ class Matrix:
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.pv = set()
         self.sample_min = 13#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
-        self.sample_pct = 0.05#-0.04-----------------------------------------------------------------------------------------------HP
-        self.aa_factor = 10#-10-----------------------------------------------------------------------------------------------------HP
+        self.sample_pct = 0.05#-0.04-0.05----------------------------------------------------------------------------------------------HP
+        self.aa_factor = 20#-10-----------------------------------------------------------------------------------------------------HP
         self.write_delta_max = 507#-507-musn't be set too low???!!!------------------------------------------------------------------HP
-        num_steps_to_max = 67#-67--------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 31#-67--------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
         self.cv_min = -(self.write_delta_max * (num_steps_to_max - 1))
         self.ppc_signal = self.tp = self.rel_idx = 0
@@ -90,15 +90,9 @@ class Matrix:
             self.Av = self.Bv.copy()
             self.Bv = {key for key, value in avg_vA_dict.items() if (value > 0)}
             aa_ct += 1
-        self.Av = self.Bv.copy()
-        dist = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys()) if (len(self.mem) > 0) else -1
-        if (dist == -1):
-            avail_indices = (self.poss_indices - set(self.mem.keys()))
-            self.rel_idx = random.choice(list(avail_indices))
-            self.mem[self.rel_idx] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
-        else:
-            cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
-            self.rel_idx = random.choice(cands)
+        dist = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys())
+        cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
+        self.rel_idx = random.choice(cands)
         ref_v = self.read_v.copy()#----------which one is better and why???
         # ref_v = self.read_comp_v.copy()#----------which one is better and why???
         norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
