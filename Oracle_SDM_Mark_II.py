@@ -2,7 +2,7 @@ import random
 class Oracle:
     def __init__(self):
         self.H = 6#----------------------------------------------------------------------------------------------------------------HP
-        self.K = 67#---------------------------------------------------------------------------------------------------------------HP
+        self.K = 67#-67--------------------------------------------------------------------------------------------------------------HP
         self.Z = 257#--------------------------------------------------------------------------------------------------------------HP
         self.pv_min = 111#-41------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
@@ -10,11 +10,10 @@ class Oracle:
         self.ppcv_dim = 5#-5------------------------------------------------------------------------------------------------------HP
         self.ppcv_L = set(range((self.K - (self.ppcv_dim * 2)), (self.K - self.ppcv_dim)))
         self.ppcv_R = set(range((self.K - self.ppcv_dim), self.K))
-        self.m = [Matrix(self, a) for a in range(self.H)]
         #____________________________________________________________________________________________________________________________
-        ts_dim = 5#----------------------------------------------------------------------------------------------------------------HP
+        ts_dim = 10#----------------------------------------------------------------------------------------------------------------HP
         ts_range_set = (set(range(self.K)) - self.ppcv_L - self.ppcv_R)
-        ts_density = 0.37#---------------------------------------------------------------------------------------------------------HP
+        ts_density = 0.57#-0.37--------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
         self.ts = []
         self.ts_index = self.cycle = 0
@@ -26,6 +25,8 @@ class Oracle:
                 ts_range_set_temp.remove(ri)
                 tv.add(ri)
             self.ts.append(tv.copy())
+        #______________________________________________________________________________________________________________________________
+        self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
         while (True):
             for a in self.m: a.update()
@@ -38,7 +39,7 @@ class Matrix:
         self.ffi = (self.mi - 1)
         self.fbi = ((self.mi + 1) % self.po.H)
         self.blank_cv = [0] * self.po.K
-        self.read_v = self.blank_cv.copy()
+        # self.read_v = self.blank_cv.copy()
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.pv = set()
@@ -61,14 +62,14 @@ class Matrix:
         #_____________________________________________________________________________________________________________________________
         aa_ct = 0
         num_samples_min = max(self.sample_min, round(float(len(self.mem)) * self.sample_pct))
-        # self.read_comp_v = self.blank_cv.copy()
+        self.read_comp_v = self.blank_cv.copy()
         while((len(self.Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
             si = list(self.mem.keys())
             random.shuffle(si)
             skip = set()
             r = 0
             avg_vA_dict = dict()
-            self.read_v = self.blank_cv.copy()
+            # self.read_v = self.blank_cv.copy()
             while ((len(si) > 0) and (len(skip) < num_samples_min)):
                 for a in si:
                     tav = self.mem[a][0]
@@ -79,8 +80,8 @@ class Matrix:
                             else: avg_vA_dict[b] = 1
                         for b in avg_vA_dict.keys():
                             if (b not in tav): avg_vA_dict[b] -= 1
-                        for i, b in enumerate(self.mem[a][1]): self.read_v[i] += b
-                        # for i, b in enumerate(self.mem[a][1]): self.read_comp_v[i] += b
+                        # for i, b in enumerate(self.mem[a][1]): self.read_v[i] += b
+                        for i, b in enumerate(self.mem[a][1]): self.read_comp_v[i] += b
                         self.mem[a][2] = random.randrange(self.po.pv_min, self.po.pv_max)
                         skip.add(a)
                 si = [c for c in si if (c not in skip)]
@@ -91,8 +92,8 @@ class Matrix:
         dist = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys())
         cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
         self.rel_idx = random.choice(cands)
-        ref_v = self.read_v.copy()#----------which one is better and why???
-        # ref_v = self.read_comp_v.copy()#----------which one is better and why???
+        # ref_v = self.read_v.copy()#----------which one is better and why???
+        ref_v = self.read_comp_v.copy()#----------which one is better and why???
         # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
         # conf_v = [(float(abs(a)) / norm) for a in ref_v]
         self.pv = {i for i, a in enumerate(ref_v) if (a > 0)}
@@ -119,7 +120,7 @@ class Matrix:
         #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
         write_delta = self.write_delta_max
         for i, a in enumerate(self.mem[self.rel_idx][1]):
-            # write_delta = round((1.0 - conf_v[i]) * float(self.write_delta_max))#--------------causes issues!!??--Is this ideal???
+            # write_delta = round((1.0 - conf_v[i]) * 0.70 * float(self.write_delta_max))#--------------causes issues!!??--Is this ideal???
             # write_delta = round(conf_v[i] * -100.0 * float(self.write_delta_max))#--------------causes issues!!??--Is this ideal???
             if ((i in self.iv) and ((a + write_delta) <= self.cv_max)): self.mem[self.rel_idx][1][i] += write_delta
             if ((i not in self.iv) and ((a - write_delta) >= self.cv_min)): self.mem[self.rel_idx][1][i] -= write_delta
