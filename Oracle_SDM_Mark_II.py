@@ -4,7 +4,7 @@ class Oracle:
         self.H = 6#----------------------------------------------------------------------------------------------------------------HP
         self.K = 67#-67--------------------------------------------------------------------------------------------------------------HP
         self.Z = 257#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 111#-41------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 11#-41------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ppcv_dim = 5#-5------------------------------------------------------------------------------------------------------HP
@@ -40,12 +40,13 @@ class Matrix:
         self.fbi = ((self.mi + 1) % self.po.H)
         self.blank_cv = [0] * self.po.K
         # self.read_v = self.blank_cv.copy()
+        self.read_comp_v = self.blank_cv.copy()
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.pv = set()
         self.sample_min = 9#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
         self.sample_pct = 0.02#-0.04-0.05-----------------------------------------------------------------------------------------HP
-        self.aa_factor = 10#-10---------------------------------------------------------------------------------------------------HP
+        self.aa_factor = 1#-10---------------------------------------------------------------------------------------------------HP
         self.write_delta_max = 507#-507-musn't be set too low???!!!---------------------------------------------------------------HP
         num_steps_to_max = 37#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
@@ -63,7 +64,7 @@ class Matrix:
         aa_ct = 0
         num_samples_min = max(self.sample_min, round(float(len(self.mem)) * self.sample_pct))
         self.read_comp_v = self.blank_cv.copy()
-        while((len(self.Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
+        while ((len(self.Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
             si = list(self.mem.keys())
             random.shuffle(si)
             skip = set()
@@ -89,9 +90,15 @@ class Matrix:
             self.Av = self.Bv.copy()
             self.Bv = {key for key, value in avg_vA_dict.items() if (value > 0)}
             aa_ct += 1
+        self.Av = self.Bv.copy()
         dist = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys())
-        cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
-        self.rel_idx = random.choice(cands)
+        if (dist > 0):
+            avail_indices = (self.poss_indices - set(self.mem.keys()))
+            self.rel_idx = random.choice(list(avail_indices))
+            self.mem[self.rel_idx] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        else:
+            cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
+            self.rel_idx = random.choice(cands)
         # ref_v = self.read_v.copy()#----------which one is better and why???
         ref_v = self.read_comp_v.copy()#----------which one is better and why???
         # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
@@ -132,7 +139,8 @@ class Matrix:
         agency_str = f"\tPPC: {self.ppc_signal}\t{self.rel_idx}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #___________________________________________________________________________________________________________________________
-        while ((len(self.mem) + 1) > self.po.Z):
+        thresh = 2
+        while ((len(self.mem) + thresh) > self.po.Z):
             remove_indices = set()
             si = list(self.mem.keys())
             random.shuffle(si)
@@ -144,7 +152,7 @@ class Matrix:
                     # remove_indices.add(a)
                     if (self.mem[a][2] > 0): self.mem[a][2] -= 1
                     else: remove_indices.add(a)
-            while (((len(self.mem) + 1) > self.po.Z) and (len(remove_indices) > 0)):
+            while (((len(self.mem) + thresh) > self.po.Z) and (len(remove_indices) > 0)):
                 ri = random.choice(list(remove_indices))
                 del self.mem[ri]
                 remove_indices.remove(ri)
