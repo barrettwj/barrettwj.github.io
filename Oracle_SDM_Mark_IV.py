@@ -1,11 +1,12 @@
 import gymnasium as gym
-env = gym.make('Pendulum-v1', g = 0.00, render_mode = "human")#-9.81
+env = gym.make('Pendulum-v1', g = 9.81, render_mode = "human")#-9.81
 import random
 class Oracle:
     def __init__(self):
         #_______________________________________________SETUP GYM DATA______________________________________________________________
-        truncated_val = 8.0#------------------------------------------------------------------------------------------------------HP
+        truncated_val = 8.0#-8.0-----------------------------------------------------------------------------------------------------HP
         self.obs_indices = [0, 1, 2]#---------------------------------------------------------------------------------------------HP
+        # self.obs_indices = [0, 1]#---------------------------------------------------------------------------------------------HP
         self.obs_range_l = [-truncated_val if (env.observation_space.low[a] == float('-inf'))
                             else env.observation_space.low[a] for a in self.obs_indices]
         self.obs_range_h = [truncated_val if (env.observation_space.high[a] == float('inf'))
@@ -27,37 +28,37 @@ class Oracle:
         total_dim = (len(self.obs_indices) + len(self.act_indices) + 1)
         self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#----------------------------------------------------------------------------------------------------HP
+        self.num_values = (int(truncated_val * 2.0) + 1)#----------------------------------------------------------------------------HP
+        self.enc_card = 5#----------------------------------------------------------------------------------------------------------HP
         #______________________________________________________________________________________________________________________________
-        self.H = 6#----------------------------------------------------------------------------------------------------------------HP
-        self.K = (total_dim * (int(truncated_val * 2.0) + 1))#---------------------------------------------------------------------HP
-        self.Z = 157#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 141#-41------------------------------------------------------------------------------------------------------HP
+        self.H = 3#----------------------------------------------------------------------------------------------------------------HP
+        self.K = (total_dim * (self.num_values + (self.enc_card - 1)))
+        self.Z = 257#--------------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 11#-41------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         #____________________________________________________DATA ENCODING___________________________________________________________
-        equi = (self.K // total_dim)
         gl_index = 0
         self.obs_vals = dict()
         for a in self.obs_indices:
-            inc = (float(self.obs_range_h[a] - self.obs_range_l[a]) / float(equi - 1))
+            inc = (float(self.obs_range_h[a] - self.obs_range_l[a]) / float(self.num_values - 1))
             td = dict()
-            for b in range(equi):
-                td[gl_index] = (float(self.obs_range_l[a]) + (float(b) * inc))
-                gl_index += 1
+            for b in range(self.num_values):
+                td[b] = [(float(self.obs_range_l[a]) + (float(b) * inc)), {(gl_index + b + c) for c in range(self.enc_card)}]
             self.obs_vals[a] = td.copy()
+            gl_index += self.num_values
         self.act_vals = dict()
         for a in self.act_indices:
-            inc = (float(self.act_range_h[a] - self.act_range_l[a]) / float(equi - 1))
+            inc = (float(self.act_range_h[a] - self.act_range_l[a]) / float(self.num_values - 1))
             td = dict()
-            for b in range(equi):
-                td[gl_index] = (float(self.act_range_l[a]) + (float(b) * inc))
-                gl_index += 1
+            for b in range(self.num_values):
+                td[b] = [(float(self.act_range_l[a]) + (float(b) * inc)), {(gl_index + b + c) for c in range(self.enc_card)}]
             self.act_vals[a] = td.copy()
-        inc = (float(self.rew_delta_range) / float(equi - 1))
+            gl_index += self.num_values
+        inc = (float(self.rew_delta_range) / float(self.num_values - 1))
         self.rew_vals = dict()
-        for a in range(equi):
-            self.rew_vals[gl_index] = (float(self.rew_delta_min) + (float(a) * inc))
-            gl_index += 1
+        for a in range(self.num_values):
+            self.rew_vals[a] = [(float(self.rew_delta_min) + (float(a) * inc)), {(gl_index + a + b) for b in range(self.enc_card)}]
         #______________________________________________________________________________________________________________________________
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
@@ -78,6 +79,7 @@ class Oracle:
         self.cumul_rew += rew
         self.episode_step_ct += 1
         self.rew_delta = (rew - self.rew_prev)
+        # self.rew_delta = 0
         self.rew_prev = rew
         eiv = self.encode_eiv(obs, self.rew_delta, eov_in)
         return eiv.copy()
@@ -85,19 +87,20 @@ class Oracle:
         out = set()
         for i, a in enumerate(obs_in):
             if (i in self.obs_vals.keys()):
-                td = {key:abs(value - a) for key, value in self.obs_vals[i].items()}
+                td = {key:abs(value[0] - a) for key, value in self.obs_vals[i].items()}
                 cands = [key for key, value in td.items() if (value == min(td.values()))]
-                out.add(random.choice(cands))
-        td = {key:abs(value - rew_delta_in) for key, value in self.rew_vals.items()}
+                rand_idx = random.choice(cands)
+                for b in self.obs_vals[i][rand_idx][1]: out.add(b)
+        td = {key:abs(value[0] - rew_delta_in) for key, value in self.rew_vals.items()}
         cands = [key for key, value in td.items() if (value == min(td.values()))]
-        out.add(random.choice(cands))
-        for a in eov_in: out.add(a)
-        return out.copy()
+        rand_idx = random.choice(cands)
+        for b in self.rew_vals[rand_idx][1]: out.add(b)
+        return out
     def decode_eov(self, eov_in):
         out = []
         for a in self.act_vals.keys():
-            cands = [value for key, value in self.act_vals[a].items() if (key in eov_in)]
-            # val = random.choice(cands) if (len(cands) > 0) else random.choice(list(self.act_vals[a].values()))
+            tdA = {key:(value[1] ^ eov_in) for key, value in self.act_vals[a].items()}
+            cands = [self.act_vals[a][key][0] for key, value in tdA.items() if (len(value) == min(len(a) for a in tdA.values()))]
             val = (float(sum(cands)) / float(max(1, len(cands))))
             out.append(val)
         return tuple(out)
@@ -109,14 +112,15 @@ class Matrix:
         self.fbi = ((self.mi + 1) % self.po.H)
         self.blank_cv = [0] * self.po.K
         # self.read_v = self.blank_cv.copy()
+        self.read_comp_v = self.blank_cv.copy()
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.pv = set()
         self.sample_min = 9#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
         self.sample_pct = 0.02#-0.04-0.05-----------------------------------------------------------------------------------------HP
-        self.aa_factor = 10#-10---------------------------------------------------------------------------------------------------HP
-        self.write_delta_max = 1507#-507-musn't be set too low???!!!---------------------------------------------------------------HP
-        num_steps_to_max = 67#-67-------------------------------------------------------------------------------------------------HP
+        self.aa_factor = 3#-10---------------------------------------------------------------------------------------------------HP
+        self.write_delta_max = 507#-507-musn't be set too low???!!!---------------------------------------------------------------HP
+        num_steps_to_max = 37#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
         self.cv_min = -(self.write_delta_max * (num_steps_to_max - 1))
         self.ppc_signal = self.tp = self.rel_idx = 0
@@ -158,9 +162,15 @@ class Matrix:
             self.Av = self.Bv.copy()
             self.Bv = {key for key, value in avg_vA_dict.items() if (value > 0)}
             aa_ct += 1
+        self.Av = self.Bv.copy()
         dist = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys())
-        cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
-        self.rel_idx = random.choice(cands)
+        if (dist > 0):
+            avail_indices = (self.poss_indices - set(self.mem.keys()))
+            self.rel_idx = random.choice(list(avail_indices))
+            self.mem[self.rel_idx] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        else:
+            cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
+            self.rel_idx = random.choice(cands)
         # ref_v = self.read_v.copy()#----------which one is better and why???
         ref_v = self.read_comp_v.copy()#----------which one is better and why???
         # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
@@ -187,7 +197,8 @@ class Matrix:
         agency_str = f"\tPPC: {self.ppc_signal}\t{self.rel_idx}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #___________________________________________________________________________________________________________________________
-        while ((len(self.mem) + 1) > self.po.Z):
+        thresh = 2
+        while ((len(self.mem) + thresh) > self.po.Z):
             remove_indices = set()
             si = list(self.mem.keys())
             random.shuffle(si)
@@ -199,7 +210,7 @@ class Matrix:
                     # remove_indices.add(a)
                     if (self.mem[a][2] > 0): self.mem[a][2] -= 1
                     else: remove_indices.add(a)
-            while (((len(self.mem) + 1) > self.po.Z) and (len(remove_indices) > 0)):
+            while (((len(self.mem) + thresh) > self.po.Z) and (len(remove_indices) > 0)):
                 ri = random.choice(list(remove_indices))
                 del self.mem[ri]
                 remove_indices.remove(ri)
