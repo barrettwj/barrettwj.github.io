@@ -4,14 +4,14 @@ class Oracle:
         self.H = 6#----------------------------------------------------------------------------------------------------------------HP
         self.K = 67#-67--------------------------------------------------------------------------------------------------------------HP
         self.Z = 257#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 11#-41------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 71#-41------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ppcv_dim = 5#-5------------------------------------------------------------------------------------------------------HP
         self.ppcv_L = set(range((self.K - (self.ppcv_dim * 2)), (self.K - self.ppcv_dim)))
         self.ppcv_R = set(range((self.K - self.ppcv_dim), self.K))
         #____________________________________________________________________________________________________________________________
-        ts_dim = 10#----------------------------------------------------------------------------------------------------------------HP
+        ts_dim = 5#----------------------------------------------------------------------------------------------------------------HP
         ts_range_set = (set(range(self.K)) - self.ppcv_L - self.ppcv_R)
         ts_density = 0.57#-0.37--------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
@@ -47,15 +47,15 @@ class Matrix:
         self.sample_min = 9#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
         self.sample_pct = 0.02#-0.04-0.05-----------------------------------------------------------------------------------------HP
         self.aa_factor = 1#-10---------------------------------------------------------------------------------------------------HP
-        self.write_delta_max = 507#-507-musn't be set too low???!!!---------------------------------------------------------------HP
-        num_steps_to_max = 37#-67-------------------------------------------------------------------------------------------------HP
+        self.write_delta_max = 9#-507-musn't be set too low???!!!---------------------------------------------------------------HP
+        num_steps_to_max = 167#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
         self.cv_min = -(self.write_delta_max * (num_steps_to_max - 1))
         self.ppc_signal = self.tp = self.rel_idx = 0
         self.agency = False
     def update(self):
-        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()#-greater beneficial stochasticity???
-        fbv = self.po.m[self.fbi].pv.copy()#-seems to stabilize beh/att???
+        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        fbv = self.po.m[self.fbi].pv.copy()
         self.Bv = (self.iv | {(self.po.K + a) for a in fbv})
         #_____________________________________________________________________________________________________________________________
         avail_indices = (self.poss_indices - set(self.mem.keys()))
@@ -101,8 +101,8 @@ class Matrix:
             self.rel_idx = random.choice(cands)
         # ref_v = self.read_v.copy()#----------which one is better and why???
         ref_v = self.read_comp_v.copy()#----------which one is better and why???
-        # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
-        # conf_v = [(float(abs(a)) / norm) for a in ref_v]
+        norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
+        conf_v = [(float(abs(a)) / norm) for a in ref_v]
         self.pv = {i for i, a in enumerate(ref_v) if (a > 0)}
         #____________________________________________________________________________________________________________________________
         if (self.mi == 0):
@@ -127,34 +127,24 @@ class Matrix:
         #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
         write_delta = self.write_delta_max
         for i, a in enumerate(self.mem[self.rel_idx][1]):
-            # write_delta = round((1.0 - conf_v[i]) * 0.70 * float(self.write_delta_max))#--------------causes issues!!??--Is this ideal???
-            # write_delta = round(conf_v[i] * -100.0 * float(self.write_delta_max))#--------------causes issues!!??--Is this ideal???
+            # write_delta = round((1.0 - conf_v[i]) * 1.0 * float(self.write_delta_max))#--------------causes issues!!??--Is this ideal???
+            # write_delta = round(conf_v[i] * float(self.write_delta_max))#--------------causes issues!!??--Is this ideal???
             if ((i in self.iv) and ((a + write_delta) <= self.cv_max)): self.mem[self.rel_idx][1][i] += write_delta
             if ((i not in self.iv) and ((a - write_delta) >= self.cv_min)): self.mem[self.rel_idx][1][i] -= write_delta
         #____________________________________________________________________________________________________________________________
         self.ov = (self.iv ^ self.pv)
-        den = float(max(1, (len(self.iv) + len(self.pv))))
-        erm = ((float(len(self.ov)) / den) * 100.0)
+        erm = ((float(len(self.ov)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tPPC: {self.ppc_signal}\t{self.rel_idx}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #___________________________________________________________________________________________________________________________
         thresh = 2
         while ((len(self.mem) + thresh) > self.po.Z):
-            remove_indices = set()
             si = list(self.mem.keys())
             random.shuffle(si)
             for a in si:
-                for i, b in enumerate(self.mem[a][1]):
-                    if (b > 0): self.mem[a][1][i] -= 1
-                    if (b < 0): self.mem[a][1][i] += 1
-                if all((b == 0) for b in self.mem[a][1]):
-                    # remove_indices.add(a)
-                    if (self.mem[a][2] > 0): self.mem[a][2] -= 1
-                    else: remove_indices.add(a)
-            while (((len(self.mem) + thresh) > self.po.Z) and (len(remove_indices) > 0)):
-                ri = random.choice(list(remove_indices))
-                del self.mem[ri]
-                remove_indices.remove(ri)
+                if (self.mem[a][2] > 0): self.mem[a][2] -= 1
+                else:
+                    if ((len(self.mem) + thresh) > self.po.Z): del self.mem[a]
 oracle = Oracle()
 oracle.update()
