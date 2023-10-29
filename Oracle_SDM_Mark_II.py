@@ -46,7 +46,7 @@ class Matrix:
         self.iv = self.ov = self.Bv = self.Av = self.pv = set()
         self.sample_min = 9#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
         self.sample_pct = 0.02#-0.04-0.05-----------------------------------------------------------------------------------------HP
-        self.aa_factor = 1#-10---------------------------------------------------------------------------------------------------HP
+        self.aa_factor = 5#-10---------------------------------------------------------------------------------------------------HP
         self.write_delta_max = 9#-507-musn't be set too low???!!!---------------------------------------------------------------HP
         num_steps_to_max = 167#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
@@ -101,8 +101,8 @@ class Matrix:
             self.rel_idx = random.choice(cands)
         # ref_v = self.read_v.copy()#----------which one is better and why???
         ref_v = self.read_comp_v.copy()#----------which one is better and why???
-        norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
-        conf_v = [(float(abs(a)) / norm) for a in ref_v]
+        # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
+        # conf_v = [(float(abs(a)) / norm) for a in ref_v]
         self.pv = {i for i, a in enumerate(ref_v) if (a > 0)}
         #____________________________________________________________________________________________________________________________
         if (self.mi == 0):
@@ -118,10 +118,11 @@ class Matrix:
             if (both or ((random.randrange(1000000) < 500000) and (self.agency == False))):#-motor babble--------------------------HP
                 self.ppc_signal = random.choice([-1, 1])
             #------TODO: encode reward signals and prediction confidence into input
+            self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + self.ppc_signal) % len(self.po.ts))
             self.iv = self.po.ts[self.po.ts_index].copy()
             if (self.ppc_signal == -1): self.iv |= self.po.ppcv_L
             if (self.ppc_signal == 1): self.iv |= self.po.ppcv_R
-            self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + self.ppc_signal) % len(self.po.ts))
+            # self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + self.ppc_signal) % len(self.po.ts))
         else: self.iv = self.po.m[self.ffi].ov.copy()
         #____________________________________________________________________________________________________________________________
         #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
