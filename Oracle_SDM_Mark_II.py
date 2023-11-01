@@ -2,7 +2,7 @@ import random
 class Oracle:
     def __init__(self):
         self.H = 6#----------------------------------------------------------------------------------------------------------------HP
-        self.K = 67#-67--------------------------------------------------------------------------------------------------------------HP
+        self.K = 2047#-67--------------------------------------------------------------------------------------------------------------HP
         self.Z = 257#--------------------------------------------------------------------------------------------------------------HP
         self.pv_min = 71#-41------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
@@ -13,18 +13,24 @@ class Oracle:
         #____________________________________________________________________________________________________________________________
         ts_dim = 5#----------------------------------------------------------------------------------------------------------------HP
         ts_range_set = (set(range(self.K)) - self.ppcv_L - self.ppcv_R)
-        ts_density = 0.57#-0.37--------------------------------------------------------------------------------------------------------HP
+        ts_density = 0.02#-0.37--------------------------------------------------------------------------------------------------------HP
         ts_card = round(float(len(ts_range_set)) * ts_density)
         self.ts = []
         self.ts_index = self.cycle = 0
+        # idxA = idxB = 0
         while (len(self.ts) < ts_dim):
             ts_range_set_temp = ts_range_set.copy()
             tv = set()
+            # idxB = idxA
             while (len(tv) < ts_card):
                 ri = random.choice(list(ts_range_set_temp))
                 ts_range_set_temp.remove(ri)
                 tv.add(ri)
+                # tv.add(idxB)
+                # idxB += 1
+            # idxA += 6
             self.ts.append(tv.copy())
+        print(self.ts)
         #______________________________________________________________________________________________________________________________
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
@@ -39,16 +45,15 @@ class Matrix:
         self.ffi = (self.mi - 1)
         self.fbi = ((self.mi + 1) % self.po.H)
         self.blank_cv = [0] * self.po.K
-        # self.read_v = self.blank_cv.copy()
-        self.read_comp_v = self.blank_cv.copy()
+        self.read_v = self.blank_cv.copy()
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.pv = set()
         self.sample_min = 9#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
         self.sample_pct = 0.02#-0.04-0.05-----------------------------------------------------------------------------------------HP
-        self.aa_factor = 5#-10---------------------------------------------------------------------------------------------------HP
-        self.write_delta_max = 9#-507-musn't be set too low???!!!---------------------------------------------------------------HP
-        num_steps_to_max = 167#-67-------------------------------------------------------------------------------------------------HP
+        self.aa_factor = 6#-10---------------------------------------------------------------------------------------------------HP
+        self.write_delta_max = 1#-------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 767#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
         self.cv_min = -(self.write_delta_max * (num_steps_to_max - 1))
         self.ppc_signal = self.tp = self.rel_idx = 0
@@ -63,7 +68,7 @@ class Matrix:
         #_____________________________________________________________________________________________________________________________
         aa_ct = 0
         num_samples_min = max(self.sample_min, round(float(len(self.mem)) * self.sample_pct))
-        self.read_comp_v = self.blank_cv.copy()
+        self.read_v = self.blank_cv.copy()
         while ((len(self.Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
             si = list(self.mem.keys())
             random.shuffle(si)
@@ -81,8 +86,7 @@ class Matrix:
                             else: avg_vA_dict[b] = 1
                         for b in avg_vA_dict.keys():
                             if (b not in tav): avg_vA_dict[b] -= 1
-                        # for i, b in enumerate(self.mem[a][1]): self.read_v[i] += b
-                        for i, b in enumerate(self.mem[a][1]): self.read_comp_v[i] += b
+                        for i, b in enumerate(self.mem[a][1]): self.read_v[i] += b
                         self.mem[a][2] = random.randrange(self.po.pv_min, self.po.pv_max)
                         skip.add(a)
                 si = [c for c in si if (c not in skip)]
@@ -99,8 +103,7 @@ class Matrix:
         else:
             cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
             self.rel_idx = random.choice(cands)
-        # ref_v = self.read_v.copy()#----------which one is better and why???
-        ref_v = self.read_comp_v.copy()#----------which one is better and why???
+        ref_v = self.read_v.copy()
         # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
         # conf_v = [(float(abs(a)) / norm) for a in ref_v]
         self.pv = {i for i, a in enumerate(ref_v) if (a > 0)}
@@ -122,7 +125,6 @@ class Matrix:
             self.iv = self.po.ts[self.po.ts_index].copy()
             if (self.ppc_signal == -1): self.iv |= self.po.ppcv_L
             if (self.ppc_signal == 1): self.iv |= self.po.ppcv_R
-            # self.po.ts_index = ((self.po.ts_index + len(self.po.ts) + self.ppc_signal) % len(self.po.ts))
         else: self.iv = self.po.m[self.ffi].ov.copy()
         #____________________________________________________________________________________________________________________________
         #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
@@ -136,7 +138,7 @@ class Matrix:
         self.ov = (self.iv ^ self.pv)
         erm = ((float(len(self.ov)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
-        agency_str = f"\tPPC: {self.ppc_signal}\t{self.rel_idx}" if ((self.mi == 0) and (self.agency)) else ""
+        agency_str = f"\tPPC: {self.ppc_signal}" if ((self.mi == 0) and (self.agency)) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #___________________________________________________________________________________________________________________________
         thresh = 2
