@@ -20,9 +20,9 @@ class Oracle:
         # self.rew_range_h = truncated_val if (env.reward_range[1] == float('inf')) else env.reward_range[1]
         self.rew_range_l = -16.2736044
         self.rew_range_h = 0
-        self.rew_delta_range = 1.0#-----------------------------------------------------------------------------------------------HP
-        self.rew_delta_min = -self.rew_delta_range
-        self.rew_delta_max = self.rew_delta_range
+        self.rew_delta_mag = 1.0#-----------------------------------------------------------------------------------------------HP
+        self.rew_delta_min = -self.rew_delta_mag
+        self.rew_delta_max = self.rew_delta_mag
         self.rew_delta_range = (self.rew_delta_max - self.rew_delta_min)
         self.rew_delta = 0
         total_dim = (len(self.obs_indices) + len(self.act_indices) + 1)
@@ -119,7 +119,7 @@ class Matrix:
         self.sample_min = 9#-13-musn't be set too high????!!!!--------------------------------------------------------------------HP
         self.sample_pct = 0.02#-0.04-0.05-----------------------------------------------------------------------------------------HP
         self.aa_factor = 6#-10---------------------------------------------------------------------------------------------------HP
-        self.write_delta_max = 9#-musn't be set too low???!!!---------------------------------------------------------------HP
+        self.write_delta_max = 1#-------------------------------------------------------------------------------------------------HP
         num_steps_to_max = 17#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = (self.write_delta_max * num_steps_to_max)
         self.cv_min = -(self.write_delta_max * (num_steps_to_max - 1))
