@@ -1,5 +1,5 @@
 import gymnasium as gym
-env = gym.make('Pendulum-v1', g = 0.00, render_mode = "human")#-9.81
+env = gym.make('Pendulum-v1', g = 9.81, render_mode = "human")#-9.81
 import random
 class Oracle:
     def __init__(self):
@@ -54,7 +54,7 @@ class Oracle:
         gl_index += self.num_values
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
-        self.H = 3#----------------------------------------------------------------------------------------------------------------HP
+        self.H = 6#----------------------------------------------------------------------------------------------------------------HP
         self.ex_act_val = []
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
@@ -112,15 +112,20 @@ class Matrix:
         self.read_v = dict()
         self.iv = self.ov = self.pv = self.Av = set()
         self.aa_factor = 3#-10-----------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 67#-67--------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 367#-67--------------------------------------------------------------------------------------------------HP
         self.cv_max = num_steps_to_max
-        self.cv_min = -(num_steps_to_max - 1)
+        self.cv_min = -num_steps_to_max
         self.tp = (len(self.e.keys()) * (len(tl) + 1))
         self.agency = False
     def update(self):
         # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
         fbv = self.po.m[self.fbi].pv.copy()
         cv = (self.iv | {(self.po.K + a) for a in fbv})
+        write_delta = 1
+        for a in self.blank_cv:
+            for b in self.e.keys():
+                if ((a in cv) and ((self.e[b][a] + write_delta) <= self.cv_max)): self.e[b][a] += write_delta
+                if ((a not in cv) and ((self.e[b][a] - write_delta) >= self.cv_min)): self.e[b][a] -= write_delta
         Bv = cv.copy()
         #_____________________________________________________________________________________________________________________________
         aa_ct = 0
@@ -139,11 +144,17 @@ class Matrix:
             Bv = self.blank_cv.copy()
             for a in self.read_v.keys(): Bv &= {i for i, b in enumerate(self.e[a]) if (b > 0)}
             aa_ct += 1
-        #___________________________________________________________________________________________________________________________        
+        self.Av = Bv.copy()
+        #___________________________________________________________________________________________________________________________
+        # write_delta = 1
+        # for a in self.blank_cv:
+        #     for b in self.e.keys():
+        #         if ((a in Bv) and ((self.e[b][a] + write_delta) <= self.cv_max)): self.e[b][a] += write_delta
+        #         if ((a not in Bv) and ((self.e[b][a] - write_delta) >= self.cv_min)): self.e[b][a] -= write_delta       
         # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
         # conf_v = [(float(abs(a)) / norm) for a in ref_v]
         self.pv = set(self.read_v.keys())
-        #____________________________________________________________________________________________________________________________
+        #___________________________________________________________________________________________________________________________
         if (self.mi == 0):
             ppc_v = set()
             for a in self.po.act_vals.keys():
@@ -159,11 +170,11 @@ class Matrix:
             self.iv |= ppc_v
         else: self.iv = self.po.m[self.ffi].ov.copy()
         self.ov = (self.iv ^ self.pv)
+        #____________________________________________________________________________________________________________________________
         failed_pev = (self.iv - self.pv)
         false_pev = (self.pv - self.iv)
-        #____________________________________________________________________________________________________________________________
         #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
-        write_delta = 1#-----------------------------------------------------------------------------------------------------------HP
+        write_delta = 2#-----------------------------------------------------------------------------------------------------------HP
         for a in cv:
             for b in failed_pev:
                 if ((self.e[b][a] + write_delta) <= self.cv_max): self.e[b][a] += write_delta
