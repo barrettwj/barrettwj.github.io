@@ -1,10 +1,10 @@
 import gymnasium as gym
-env = gym.make('Pendulum-v1', g = 9.81, render_mode = "human")#-9.81
+env = gym.make('Pendulum-v1', g = 0.00, render_mode = "human")#-9.81
 import random
 class Oracle:
     def __init__(self):
         #_______________________________________________SETUP GYM DATA______________________________________________________________
-        truncated_val = 36.0#-8.0-------------------------------------------------------------------------------------------------HP
+        truncated_val = 8.0#-8.0-------------------------------------------------------------------------------------------------HP
         self.obs_indices = [0, 1, 2]#---------------------------------------------------------------------------------------------HP
         # self.obs_indices = [0, 1]#------------------------------------------------------------------------------------------------HP
         self.obs_range_l = [-truncated_val if (env.observation_space.low[a] == float('-inf'))
@@ -28,7 +28,7 @@ class Oracle:
         self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#---------------------------------------------------------------------------------------------------HP
         self.num_values = 7#-should always be odd!!!------------------------------------------------------------------------------HP
-        self.enc_card = 6#--------------------------------------------------------------------------------------------------------HP
+        self.enc_card = 19#--------------------------------------------------------------------------------------------------------HP
         #____________________________________________________DATA EMBEDDING_________________________________________________________
         gl_index = 0
         self.obs_vals = dict()
@@ -54,7 +54,7 @@ class Oracle:
         gl_index += self.num_values
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
-        self.H = 6#----------------------------------------------------------------------------------------------------------------HP
+        self.H = 3#----------------------------------------------------------------------------------------------------------------HP
         self.ex_act_val = []
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
@@ -107,52 +107,53 @@ class Matrix:
         self.ffi = (self.mi - 1)
         self.fbi = ((self.mi + 1) % self.po.H)
         self.blank_cv = {a for a in range((self.po.K * 2))}
-        tl = [0] * (self.po.K * 2)
-        self.e = {a:tl.copy() for a in range(self.po.K)}
+        self.e = {a:([0] * (self.po.K * 2)) for a in range(self.po.K)}
         self.read_v = dict()
         self.iv = self.ov = self.pv = self.Av = set()
         self.aa_factor = 3#-10-----------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 367#-67--------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 17#-67--------------------------------------------------------------------------------------------------HP
         self.cv_max = num_steps_to_max
         self.cv_min = -num_steps_to_max
-        self.tp = (len(self.e.keys()) * (len(tl) + 1))
+        self.tp = (len(self.e.keys()) * ((self.po.K * 2) + 1))
         self.agency = False
     def update(self):
         # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
         fbv = self.po.m[self.fbi].pv.copy()
         cv = (self.iv | {(self.po.K + a) for a in fbv})
-        write_delta = 1
-        for a in self.blank_cv:
-            for b in self.e.keys():
-                if ((a in cv) and ((self.e[b][a] + write_delta) <= self.cv_max)): self.e[b][a] += write_delta
-                if ((a not in cv) and ((self.e[b][a] - write_delta) >= self.cv_min)): self.e[b][a] -= write_delta
-        Bv = cv.copy()
-        #_____________________________________________________________________________________________________________________________
-        aa_ct = 0
-        while ((len(Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
-            r = max(sum(self.e[a][b] for b in Bv) for a in self.e.keys())
-            si = list(self.e.keys())
-            random.shuffle(si)
-            self.read_v = dict()
-            while (r > 0):
-                for a in si:
-                    if (a not in self.read_v.keys()):
-                         av = sum(self.e[a][b] for b in Bv)
-                         if (av == r): self.read_v[a] = av
-                r -= 1
-            self.Av = Bv.copy()
-            Bv = self.blank_cv.copy()
-            for a in self.read_v.keys(): Bv &= {i for i, b in enumerate(self.e[a]) if (b > 0)}
-            aa_ct += 1
-        self.Av = Bv.copy()
-        #___________________________________________________________________________________________________________________________
         # write_delta = 1
         # for a in self.blank_cv:
         #     for b in self.e.keys():
-        #         if ((a in Bv) and ((self.e[b][a] + write_delta) <= self.cv_max)): self.e[b][a] += write_delta
-        #         if ((a not in Bv) and ((self.e[b][a] - write_delta) >= self.cv_min)): self.e[b][a] -= write_delta       
-        # norm = float(max(abs(min(ref_v)), abs(max(ref_v)), 1))
-        # conf_v = [(float(abs(a)) / norm) for a in ref_v]
+        #         if ((a in cv) and ((self.e[b][a] + write_delta) <= self.cv_max)): self.e[b][a] += write_delta
+        #         if ((a not in cv) and ((self.e[b][a] - write_delta) >= self.cv_min)): self.e[b][a] -= write_delta
+        Bv = cv.copy()
+        #_____________________________________________________________________________________________________________________________
+        aa_ct = 0
+        thresh_A = 0#---------------------------------------------------------------------------------------------------------------HP
+        # while ((len(Bv ^ self.Av) > thresh_A) and (aa_ct < self.aa_factor)):
+        while (len(Bv ^ self.Av) > thresh_A):
+            r = max(sum(self.e[a][b] for b in Bv) for a in self.e.keys())
+            thresh_B = (r - 1)#-----------------------------------------------------------------------------------------------------HP
+            si = list(self.e.keys())
+            random.shuffle(si)
+            self.read_v = dict()
+            sum_v = ([0] * (self.po.K * 2))
+            while (r > thresh_B):
+                for a in si:
+                    if (a not in self.read_v.keys()):
+                         av = sum(self.e[a][b] for b in Bv)
+                         if (av == r):
+                             self.read_v[a] = av
+                             for i, c in enumerate(self.e[a]): sum_v[i] += c
+                r -= 1
+            self.Av = Bv.copy()
+            Bv = {i for i, a in enumerate(sum_v) if (a > 0)}
+            aa_ct += 1
+        # self.Av = Bv.copy()
+        #___________________________________________________________________________________________________________________________
+        conf_v = dict()
+        if (len(self.read_v.keys()) > 0):      
+            norm = float(max(abs(min(self.read_v.values())), abs(max(self.read_v.values())), 1))
+            # conf_v = {a:(float(abs(self.read_v[a])) / norm) for a in self.read_v.keys()}
         self.pv = set(self.read_v.keys())
         #___________________________________________________________________________________________________________________________
         if (self.mi == 0):
@@ -174,15 +175,19 @@ class Matrix:
         failed_pev = (self.iv - self.pv)
         false_pev = (self.pv - self.iv)
         #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
-        write_delta = 2#-----------------------------------------------------------------------------------------------------------HP
+        write_delta = 1#-----------------------------------------------------------------------------------------------------------HP
+        write_delta_max = 2
         for a in cv:
             for b in failed_pev:
+                # write_delta = round(conf_v[b] * float(write_delta_max)) if (b in conf_v.keys()) else 2
                 if ((self.e[b][a] + write_delta) <= self.cv_max): self.e[b][a] += write_delta
             for b in false_pev:
+                # write_delta = round(conf_v[b] * float(write_delta_max)) if (b in conf_v.keys()) else 2
                 if ((self.e[b][a] - write_delta) >= self.cv_min): self.e[b][a] -= write_delta
         #____________________________________________________________________________________________________________________________
         erm = ((float(len(self.ov)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
-        agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.2f}" if (self.agency) else ""
+        agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
+        # agency_str = f"\tEX_ACT: {self.po.ex_act_val}" if (self.agency) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}" + agency_str)
 oracle = Oracle()
 oracle.update()

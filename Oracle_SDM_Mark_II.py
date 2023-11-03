@@ -30,7 +30,6 @@ class Oracle:
                 # idxB += 1
             # idxA += 6
             self.ts.append(tv.copy())
-        print(self.ts)
         #______________________________________________________________________________________________________________________________
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):

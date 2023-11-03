@@ -4,7 +4,7 @@ import random
 class Oracle:
     def __init__(self):
         #_______________________________________________SETUP GYM DATA______________________________________________________________
-        truncated_val = 36.0#-8.0--------------------------------------------------------------------------------------------------HP
+        truncated_val = 8.0#-8.0--------------------------------------------------------------------------------------------------HP
         self.obs_indices = [0, 1, 2]#---------------------------------------------------------------------------------------------HP
         # self.obs_indices = [0, 1]#------------------------------------------------------------------------------------------------HP
         self.obs_range_l = [-truncated_val if (env.observation_space.low[a] == float('-inf'))
@@ -27,8 +27,8 @@ class Oracle:
         self.rew_delta = 0
         self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#---------------------------------------------------------------------------------------------------HP
-        self.num_values = 7#-should always be odd!!!-----------------------------------------------------------------------------HP
-        self.enc_card = 6#--------------------------------------------------------------------------------------------------------HP
+        self.num_values = 31#-should always be odd!!!-----------------------------------------------------------------------------HP
+        self.enc_card = 7#--------------------------------------------------------------------------------------------------------HP
         #____________________________________________________DATA EMBEDDING_________________________________________________________
         gl_index = 0
         self.obs_vals = dict()
@@ -55,7 +55,7 @@ class Oracle:
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
-        self.Z = 1257#--------------------------------------------------------------------------------------------------------------HP
+        self.Z = 257#--------------------------------------------------------------------------------------------------------------HP
         self.pv_min = 171#---------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.73#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
@@ -67,7 +67,7 @@ class Oracle:
             for a in self.m: a.update()
             # self.cycle += 1
     def interface_env(self, eov_in):
-        obs, rew, ter, tru, inf = env.step(self.decode_eov(eov_in))
+        obs, rew, ter, tru, inf = env.step(self.decode_eov(eov_in.copy()))
         if (ter or tru):
             env.reset(seed = self.env_seed)
             norm = (self.rew_range_l * float(max(self.episode_step_ct, 1)))
@@ -80,26 +80,29 @@ class Oracle:
         self.rew_delta = (rew - self.rew_prev)
         # self.rew_delta = 0
         self.rew_prev = rew
-        eiv = self.encode_eiv(obs, self.rew_delta, eov_in)
+        eiv = self.encode_eiv(obs, self.rew_delta)
         return eiv.copy()
-    def encode_eiv(self, obs_in, rew_delta_in, eov_in):
+    def encode_eiv(self, obs_in, rew_delta_in):
         out = set()
         for i, a in enumerate(obs_in):
             if (i in self.obs_vals.keys()):
                 td = {key:abs(value[0] - a) for key, value in self.obs_vals[i].items()}
                 cands = [key for key, value in td.items() if (value == min(td.values()))]
-                rand_idx = random.choice(cands)
-                for b in self.obs_vals[i][rand_idx][1]: out.add(b)
-        # td = {key:abs(value[0] - rew_delta_in) for key, value in self.rew_vals.items()}
-        # cands = [key for key, value in td.items() if (value == min(td.values()))]
+                for b in cands: out |= self.obs_vals[i][b][1]
+                # rand_idx = random.choice(cands)
+                # for b in self.obs_vals[i][rand_idx][1]: out.add(b)
+        td = {key:abs(value[0] - rew_delta_in) for key, value in self.rew_vals.items()}
+        cands = [key for key, value in td.items() if (value == min(td.values()))]
+        for b in cands: out |= self.rew_vals[b][1]
         # rand_idx = random.choice(cands)
         # for b in self.rew_vals[rand_idx][1]: out.add(b)
         return out.copy()
     def decode_eov(self, eov_in):
         out = []
         for a in self.act_vals.keys():
-            td = {key:len(value[1] ^ eov_in) for key, value in self.act_vals[a].items()}
-            cands = [self.act_vals[a][key][0] for key, value in td.items() if (value == min(td.values()))]
+            td = {key:len(value[1] & eov_in) for key, value in self.act_vals[a].items()}
+            # cands = [self.act_vals[a][key][0] for key, value in td.items() if (value == max(td.values()))]
+            cands = [self.act_vals[a][key][0] for key, value in td.items() if (value > 0)]#---------------------------HP
             val = (float(sum(cands)) / float(max(1, len(cands))))
             out.append(val)
         self.ex_act_val = out.copy()
@@ -184,6 +187,7 @@ class Matrix:
                 riA = random.choice(list(self.po.act_vals.keys()))
                 riB = random.choice(list(self.po.act_vals[riA].keys()))
                 self.pv |= self.po.act_vals[riA][riB][1]
+                ppc_v = self.po.act_vals[riA][riB][1].copy()
             #------TODO: embed RL signals and prediction confidence into input
             self.iv = self.po.interface_env(self.pv.copy()).copy()
             self.iv |= ppc_v
@@ -200,7 +204,8 @@ class Matrix:
         #____________________________________________________________________________________________________________________________
         erm = ((float(len(self.ov)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
-        agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.2f}" if (self.agency) else ""
+        # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.2f}" if (self.agency) else ""
+        agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #____________________________________________________________________________________________________________________________
         thresh = 2
