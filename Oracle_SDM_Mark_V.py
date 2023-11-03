@@ -27,7 +27,7 @@ class Oracle:
         self.rew_delta = self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#---------------------------------------------------------------------------------------------------HP
         self.num_values = (round(truncated_val * 2.0) + 1)
-        self.enc_card = 9#--------------------------------------------------------------------------------------------------------HP
+        self.enc_card = 9#-9-------------------------------------------------------------------------------------------------------HP
         #____________________________________________________DATA EMBEDDING_________________________________________________________
         gl_index = 0
         self.obs_vals = dict()
@@ -53,9 +53,9 @@ class Oracle:
         gl_index += self.num_values
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
-        self.H = 6#----------------------------------------------------------------------------------------------------------------HP
-        self.Z = 277#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 3171#---------------------------------------------------------------------------------------------------------HP
+        self.H = 3#----------------------------------------------------------------------------------------------------------------HP
+        self.Z = 1177#--------------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 271#---------------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.13#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ex_act_val = []
@@ -112,17 +112,18 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.cv = self.pv = self.ppc_v = set()
-        self.sample_min = 5#-13-musn't be set too high????!!!!---------------------------------------------------------------------HP
+        self.sample_min = 5#-5!!!should be odd???!!!5-musn't be set too high????!!!!--------------------------------------------------HP
         self.sample_pct = 0.02#----------------------------------------------------------------------------------------------------HP
-        self.aa_factor = 5#-10-----------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 167#-67-------------------------------------------------------------------------------------------------HP
+        self.aa_factor = 20#-10-----------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 767#-67-------------------------------------------------------------------------------------------------HP
         self.cv_max = num_steps_to_max
         self.cv_min = -(num_steps_to_max - 1)
         self.tp = self.rel_idx = self.Bv_index = 0
         self.agency = False
+        self.mb = False
     def update(self):
-        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
-        fbv = self.po.m[self.fbi].pv.copy()
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        # fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
         self.cv = (self.iv | {(self.po.K + a) for a in fbv})
         self.Bv = self.cv.copy()
         #_____________________________________________________________________________________________________________________________
@@ -162,15 +163,15 @@ class Matrix:
             self.Bv = {key for key, value in avg_vA_dict.items() if (value > 0)}
             aa_ct += 1
         #___________________________________________________________________________________________________________________________
-        # self.Av = self.Bv.copy()
+        self.Av = self.Bv.copy()
         dist = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys())
         if (dist > 0):
             avail_indices = (self.poss_indices - set(self.mem.keys()))
             self.Bv_index = random.choice(list(avail_indices))
-            self.mem[self.Bv_index] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         else:
             cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
             self.Bv_index = random.choice(cands)
+        self.mem[self.Bv_index] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         ref_v = self.read_v.copy()
         norm = float(self.cv_max - 1)
         conf_thresh = 0.50#-----------------------------------------------------------------------------------------------------HP
@@ -192,35 +193,39 @@ class Matrix:
                 for value in self.po.act_vals[a].values():
                     self.ppc_v |= (self.pv & value[1])
             self.agency = (len(self.ppc_v) > 0)
-            if ((random.randrange(1000000) < 50000) and (self.agency == False)):#-motor babble------------------------------------HP
+            self.mb = False
+            if ((random.randrange(1000000) < 500000) and (self.agency == False)):#-motor babble------------------------------------HP
                 riA = random.choice(list(self.po.act_vals.keys()))
                 riB = random.choice(list(self.po.act_vals[riA].keys()))
                 self.pv |= self.po.act_vals[riA][riB][1]
                 self.ppc_v = self.po.act_vals[riA][riB][1].copy()
+                self.mb = True
             #------TODO: embed RL signals and prediction confidence into input
             self.iv = self.po.interface_env(self.pv.copy()).copy()
             if (self.po.rew_delta > 0): self.iv |= self.ppc_v
         else: self.iv = self.po.m[self.ffi].ov.copy()
         self.ov = (self.iv ^ self.pv)
+        erm = ((float(len(self.ov)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
         #____________________________________________________________________________________________________________________________
+        # if (self.po.rew_delta <= 0): self.pv -= self.ppc_v#----bad idea????
         #-------TODO: modulate write_delta proportional to prediction confidence and RL signals
         # write_delta = 1#-----------------------------------------------------------------------------------------------------------HP
         for i, a in enumerate(self.mem[self.Bv_index][1]):
             write_delta = (round((1.0 - conf_v[i]) * 10.0) + 1)#------------------------------------causes issues!!??--Is this ideal???
             # write_delta = (round(conf_v[i] * 3.0) + 1)#--------------------------------------------------causes issues!!??--Is this ideal???
-            if ((i in self.iv) and ((a + write_delta) <= self.cv_max)): self.mem[self.Bv_index][1][i] += write_delta
-            if ((i not in self.iv) and ((a - write_delta) >= self.cv_min)): self.mem[self.Bv_index][1][i] -= write_delta
-        write_delta = 1#-----------------------------------------------------------------------------------------------------------HP
+            if (i in self.iv): self.mem[self.Bv_index][1][i] = min(self.cv_max, (self.mem[self.Bv_index][1][i] + write_delta))
+            if (i not in self.iv): self.mem[self.Bv_index][1][i] = max(self.cv_min, (self.mem[self.Bv_index][1][i] - write_delta))
+        # write_delta = 1#-----------------------------------------------------------------------------------------------------------HP
         for i, a in enumerate(self.mem[self.rel_idx][1]):
-            # write_delta = (round((1.0 - conf_v[i]) * 3.0) + 1)#------------------------------------causes issues!!??--Is this ideal???
+            write_delta = (round((1.0 - conf_v[i]) * 10.0) + 1)#------------------------------------causes issues!!??--Is this ideal???
             # write_delta = (round(conf_v[i] * 3.0) + 1)#--------------------------------------------------causes issues!!??--Is this ideal???
-            if ((i in self.iv) and ((a + write_delta) <= self.cv_max)): self.mem[self.rel_idx][1][i] += write_delta
-            if ((i not in self.iv) and ((a - write_delta) >= self.cv_min)): self.mem[self.rel_idx][1][i] -= write_delta
+            if (i in self.iv): self.mem[self.rel_idx][1][i] = min(self.cv_max, (self.mem[self.rel_idx][1][i] + write_delta))
+            if (i not in self.iv): self.mem[self.rel_idx][1][i] = max(self.cv_min, (self.mem[self.rel_idx][1][i] - write_delta))
         #____________________________________________________________________________________________________________________________
-        erm = ((float(len(self.ov)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
+        # mb_str = f"\tMB" if (self.mb) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #____________________________________________________________________________________________________________________________
         thresh = 2
