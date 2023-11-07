@@ -9,8 +9,8 @@ class Oracle:
         self.min_int = -(self.max_int - 1)
         #_______________________________________________SETUP GYM DATA______________________________________________________________
         truncated_val = 16.0#-----------------------------------------------------------------------------------------------------HP
-        # self.obs_indices = [0, 1, 2]#---------------------------------------------------------------------------------------------HP
-        self.obs_indices = [0, 1]#------------------------------------------------------------------------------------------------HP
+        self.obs_indices = [0, 1, 2]#---------------------------------------------------------------------------------------------HP
+        # self.obs_indices = [0, 1]#------------------------------------------------------------------------------------------------HP
         self.obs_range_l = [-truncated_val if (env.observation_space.low[a] == -math.inf)
                             else env.observation_space.low[a] for a in self.obs_indices]
         self.obs_range_h = [truncated_val if (env.observation_space.high[a] == math.inf)
@@ -31,8 +31,8 @@ class Oracle:
         self.rew_delta = self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#---------------------------------------------------------------------------------------------------HP
         # self.num_values = (round(truncated_val * 2.0) + 1)#-must be odd!!!
-        self.num_values = 17#-must be odd!!!
-        self.enc_card = 3#-should be even???--------------------------------------------------------------------------------------HP
+        self.num_values = 7#-must be odd!!!
+        self.enc_card = 4#-should be even???--------------------------------------------------------------------------------------HP
         #____________________________________________________DATA EMBEDDING_________________________________________________________
         gl_index = 0
         self.obs_vals = dict()
@@ -64,7 +64,7 @@ class Oracle:
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
-        self.Z = 977#--------------------------------------------------------------------------------------------------------------HP
+        self.Z = 377#--------------------------------------------------------------------------------------------------------------HP
         self.pv_min = 11#-171-----------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.13#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
@@ -73,16 +73,18 @@ class Oracle:
         self.ppcv = set()
     def update(self):
         env.reset(seed = self.env_seed)
+        # env.reset()
         while (True):
             for a in self.m: a.update()
     def interface_env(self, eov_in):
         obs, rew, ter, tru, inf = env.step(self.decode_eov(eov_in.copy()))
         if (ter or tru):
             env.reset(seed = self.env_seed)
-            # norm = (self.rew_range_l * float(max(self.episode_step_ct, 1)))
-            # self.rew_metric = ((float(self.cumul_rew) / norm) * 100.0)
+            # env.reset()
+            norm = (self.rew_range_l * float(max(self.episode_step_ct, 1)))
+            self.rew_metric = ((1.0 - (float(self.cumul_rew) / norm)) * 100.0)
             self.cumul_rew = self.episode_step_ct = 0
-            self.episode_ct += 1
+            # self.episode_ct += 1
         self.cumul_rew += rew
         self.episode_step_ct += 1
         self.rew_delta = (rew - self.rew_prev)
@@ -122,9 +124,9 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.gt_cv = self.pv = self.vi_total = self.vi_partial = set()
-        self.r_max = 3#------------------------------------------------------------------------------------------------------------HP
-        self.write_delta_max = 100#------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 7#-7-27------------------------------------------------------------------------------------------------HP
+        self.r_max = 2#-----------------------------------------------------------------------------------------------------------HP
+        self.write_delta_max = 10#------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 5#-7---------------------------------------------------------------------------------------------------HP
         self.cv_max = (num_steps_to_max * self.write_delta_max)
         self.cv_min = -(self.cv_max - 1)
         self.tp = self.rel_idx = self.Bv_index = 0
@@ -142,8 +144,9 @@ class Matrix:
         #_____________________________________________________________________________________________________________________________
         self.vi_total = set()
         self.vi_partial = set()
+        diff = 2
         # self.read_v = self.blank_cv.copy()
-        while (len(self.Bv ^ self.Av) > 0):
+        while (len(self.Bv ^ self.Av) > diff):
             si = list(self.mem.keys())
             random.shuffle(si)
             self.vi_partial = set()
@@ -190,7 +193,7 @@ class Matrix:
             for a in self.po.act_vals.keys():
                 for value in self.po.act_vals[a].values(): self.po.ppcv |= (value[1] & self.pv)
             self.agency = (len(self.po.ppcv) > 0)
-            if ((self.agency == False) and (random.randrange(1000000) < 500000)):#-motor babble------------------------------------HP
+            if ((self.agency == False) and (random.randrange(1000000) < 100000)):#-motor babble------------------------------------HP
                 riA = random.choice(list(self.po.act_vals.keys()))
                 riB = random.choice(list(self.po.act_vals[riA].keys()))
                 self.po.ppcv = self.po.act_vals[riA][riB][1].copy()
@@ -199,14 +202,13 @@ class Matrix:
             self.iv = self.po.interface_env(self.pv.copy()).copy()
             if (self.po.rew_delta > 0):
                 self.iv |= self.po.ppcv
-                mag = round(10.0 * self.po.rew_delta)#-----------------------------------------------------------------------------HP
+                mag = round(5.0 * self.po.rew_delta)#-----------------------------------------------------------------------------HP
                 # for a in self.vi_total:
                 for a in self.vi_partial:
-                    val = min((self.mem[a][2] + mag), 200)#------------------------------------------------------------------------HP
+                    val = min((self.mem[a][2] + mag), 5000)#------------------------------------------------------------------------HP
                     self.mem[a][2] = val
             else:
                 self.pv -= self.po.ppcv
-                # self.conf_v = ([1.0] * self.po.K)#----------I THINK THIS CAUSES ISSUES????!!!!!
                 # self.vi_total = set()
                 self.vi_partial = set()
         else: self.iv = self.po.m[self.ffi].ov.copy()
@@ -217,18 +219,18 @@ class Matrix:
         # for a in self.vi_total:
         for a in self.vi_partial:
             for i, b in enumerate(self.mem[a][1]):
-                # write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max))
+                write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max))
                 if (i in self.iv):
-                    write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max)) 
-                    self.mem[a][1][i] = min(self.cv_max, (self.mem[a][1][i] + write_delta))
+                    # write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max)) 
+                    self.mem[a][1][i] = min(self.cv_max, (b + write_delta))
                 if (i not in self.iv):
-                    write_delta = round(self.conf_v[i] * float(self.write_delta_max)) 
-                    self.mem[a][1][i] = max(self.cv_min, (self.mem[a][1][i] - write_delta))
+                    # write_delta = round(self.conf_v[i] * float(self.write_delta_max)) 
+                    self.mem[a][1][i] = max(self.cv_min, (b - write_delta))
         #____________________________________________________________________________________________________________________________
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
-        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
+        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}\tREW: {self.po.rew_metric:.2f}%" + agency_str)
         #____________________________________________________________________________________________________________________________
         while ((len(self.mem) + 1) > self.po.Z):
             si = list(self.mem.keys())
