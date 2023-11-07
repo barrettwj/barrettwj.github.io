@@ -31,7 +31,7 @@ class Oracle:
         self.rew_delta = self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#---------------------------------------------------------------------------------------------------HP
         # self.num_values = (round(truncated_val * 2.0) + 1)#-must be odd!!!
-        self.num_values = 7#-must be odd!!!
+        self.num_values = 17#-must be odd!!!
         self.enc_card = 3#-should be even???--------------------------------------------------------------------------------------HP
         #____________________________________________________DATA EMBEDDING_________________________________________________________
         gl_index = 0
@@ -65,7 +65,7 @@ class Oracle:
         self.K = (gl_index + (self.enc_card - 1))
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
         self.Z = 977#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 91#-171-----------------------------------------------------------------------------------------------------HP
+        self.pv_min = 11#-171-----------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.13#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ex_act_val = []
@@ -122,9 +122,9 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.gt_cv = self.pv = self.vi_total = self.vi_partial = set()
-        self.r_max = 6#------------------------------------------------------------------------------------------------------------HP
+        self.r_max = 3#------------------------------------------------------------------------------------------------------------HP
         self.write_delta_max = 100#------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 27#-7-27------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 7#-7-27------------------------------------------------------------------------------------------------HP
         self.cv_max = (num_steps_to_max * self.write_delta_max)
         self.cv_min = -(self.cv_max - 1)
         self.tp = self.rel_idx = self.Bv_index = 0
@@ -200,8 +200,10 @@ class Matrix:
             if (self.po.rew_delta > 0):
                 self.iv |= self.po.ppcv
                 mag = round(10.0 * self.po.rew_delta)#-----------------------------------------------------------------------------HP
-                # for a in self.vi_total: self.mem[a][2] = (random.randrange(self.po.pv_min, self.po.pv_max) * mag)
-                for a in self.vi_partial: self.mem[a][2] = (random.randrange(self.po.pv_min, self.po.pv_max) * mag)
+                # for a in self.vi_total:
+                for a in self.vi_partial:
+                    val = min((self.mem[a][2] + mag), 200)#------------------------------------------------------------------------HP
+                    self.mem[a][2] = val
             else:
                 self.pv -= self.po.ppcv
                 # self.conf_v = ([1.0] * self.po.K)#----------I THINK THIS CAUSES ISSUES????!!!!!
