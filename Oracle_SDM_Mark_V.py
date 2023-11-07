@@ -1,23 +1,27 @@
 import gymnasium as gym
 env = gym.make('Pendulum-v1', g = 0.00, render_mode = "human")#-9.81
 import random
+import math
+import sys
 class Oracle:
     def __init__(self):
+        self.max_int = (sys.maxsize - 10)
+        self.min_int = -(self.max_int - 1)
         #_______________________________________________SETUP GYM DATA______________________________________________________________
         truncated_val = 16.0#-----------------------------------------------------------------------------------------------------HP
         self.obs_indices = [0, 1, 2]#---------------------------------------------------------------------------------------------HP
         # self.obs_indices = [0, 1]#------------------------------------------------------------------------------------------------HP
-        self.obs_range_l = [-truncated_val if (env.observation_space.low[a] == float('-inf'))
+        self.obs_range_l = [-truncated_val if (env.observation_space.low[a] == -math.inf)
                             else env.observation_space.low[a] for a in self.obs_indices]
-        self.obs_range_h = [truncated_val if (env.observation_space.high[a] == float('inf'))
+        self.obs_range_h = [truncated_val if (env.observation_space.high[a] == math.inf)
                             else env.observation_space.high[a] for a in self.obs_indices]
         self.act_indices = [0]#---------------------------------------------------------------------------------------------------HP
-        self.act_range_l = [-truncated_val if (env.action_space.low[a] == float('-inf'))
+        self.act_range_l = [-truncated_val if (env.action_space.low[a] == -math.inf)
                             else env.action_space.low[a] for a in self.act_indices]
-        self.act_range_h = [truncated_val if (env.action_space.high[a] == float('inf'))
+        self.act_range_h = [truncated_val if (env.action_space.high[a] == math.inf)
                             else env.action_space.high[a] for a in self.act_indices]
-        # self.rew_range_l = -truncated_val if (env.reward_range[0] == float('-inf')) else env.reward_range[0]
-        # self.rew_range_h = truncated_val if (env.reward_range[1] == float('inf')) else env.reward_range[1]
+        # self.rew_range_l = -truncated_val if (env.reward_range[0] == -math.inf) else env.reward_range[0]
+        # self.rew_range_h = truncated_val if (env.reward_range[1] == math.inf) else env.reward_range[1]
         self.rew_range_l = -16.2736044
         self.rew_range_h = 0
         self.rew_delta_range_l = (self.rew_range_l - self.rew_range_h)
@@ -60,8 +64,8 @@ class Oracle:
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
-        self.Z = 177#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 971#-171-----------------------------------------------------------------------------------------------------HP
+        self.Z = 777#--------------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 371#-171-----------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.13#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ex_act_val = []
@@ -116,7 +120,7 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.gt_cv = self.pv = self.vi = set()
-        self.sample_min = 10#-10!!!should be odd???!!!-musn't be set too high????!!!!----------------------------------------------HP
+        self.sample_min = 3#-10!!!should be odd???!!!-musn't be set too high????!!!!----------------------------------------------HP
         self.aa_factor = 10#-10----------------------------------------------------------------------------------------------------HP
         self.write_delta_max = 100#------------------------------------------------------------------------------------------------HP
         num_steps_to_max = 73#-7-27---------------------------------------------------------------------------------------------------HP
@@ -154,10 +158,9 @@ class Matrix:
                             if (i in tav): avg_vA_list[i] += 1
                             else: avg_vA_list[i] -= 1
                         for i, b in enumerate(self.mem[a][1]):
-                            val = (self.read_v[i] + b)
-                            if (val < self.cv_min): val = self.cv_min
-                            if (val > self.cv_max): val = self.cv_max
-                            self.read_v[i] = val
+                            if (self.read_v[i] > 0): val = min((self.po.max_int - self.read_v[i]),  b)
+                            else: val = max((self.po.min_int - self.read_v[i]),  b)
+                            self.read_v[i] += val
                         self.mem[a][2] = random.randrange(self.po.pv_min, self.po.pv_max)
                         skip.add(a)
                         self.vi.add(a)
@@ -170,17 +173,21 @@ class Matrix:
         self.Av = self.Bv.copy()#---necessary????--appropriate????
         #___________________________________________________________________________________________________________________________
         norm = float(self.cv_max - 1)
+        norm_min = float(max(1, abs(min(self.read_v))))
+        norm_max = float(max(1, abs(max(self.read_v))))
         conf_thresh = 0.50#-----------------------------------------------------------------------------------------------------HP
         self.pv = set()
         self.conf_v = []
         for i, a in enumerate(self.read_v):
             if (a > 0):
-                val = (float(abs(a) - 1) / norm)
+                # val = (float(abs(a) - 1) / norm)
+                val = (float(a) / norm_max)
                 # if (val >= conf_thresh): self.pv.add(i)
                 self.pv.add(i)
                 self.conf_v.append(val)
             else:
-                val = (float(abs(a)) / norm)
+                # val = (float(abs(a)) / norm)
+                val = (float(abs(a)) / norm_min)
                 self.conf_v.append(val)
         # print(self.conf_v)
         #____________________________________________________________________________________________________________________________
