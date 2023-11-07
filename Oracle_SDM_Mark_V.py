@@ -4,7 +4,7 @@ import random
 class Oracle:
     def __init__(self):
         #_______________________________________________SETUP GYM DATA______________________________________________________________
-        truncated_val = 16.0#-8.0--------------------------------------------------------------------------------------------------HP
+        truncated_val = 16.0#-----------------------------------------------------------------------------------------------------HP
         self.obs_indices = [0, 1, 2]#---------------------------------------------------------------------------------------------HP
         # self.obs_indices = [0, 1]#------------------------------------------------------------------------------------------------HP
         self.obs_range_l = [-truncated_val if (env.observation_space.low[a] == float('-inf'))
@@ -27,8 +27,8 @@ class Oracle:
         self.rew_delta = self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#---------------------------------------------------------------------------------------------------HP
         # self.num_values = (round(truncated_val * 2.0) + 1)
-        self.num_values = 33
-        self.enc_card = 5#-9-should be even???------------------------------------------------------------------------------------HP
+        self.num_values = 7
+        self.enc_card = 4#-9-should be even???------------------------------------------------------------------------------------HP
         #____________________________________________________DATA EMBEDDING_________________________________________________________
         gl_index = 0
         self.obs_vals = dict()
@@ -60,8 +60,8 @@ class Oracle:
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
-        self.Z = 377#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 371#-171-----------------------------------------------------------------------------------------------------HP
+        self.Z = 177#--------------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 971#-171-----------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.13#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ex_act_val = []
@@ -71,7 +71,6 @@ class Oracle:
         env.reset(seed = self.env_seed)
         while (True):
             for a in self.m: a.update()
-            # self.cycle += 1
     def interface_env(self, eov_in):
         obs, rew, ter, tru, inf = env.step(self.decode_eov(eov_in.copy()))
         if (ter or tru):
@@ -116,24 +115,24 @@ class Matrix:
         self.conf_v = self.blank_cv.copy()
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
-        self.iv = self.ov = self.Bv = self.Av = self.cv = self.pv = set()
+        self.iv = self.ov = self.Bv = self.Av = self.gt_cv = self.pv = set()
         self.sample_min = 10#-10!!!should be odd???!!!-musn't be set too high????!!!!----------------------------------------------HP
         self.aa_factor = 10#-10----------------------------------------------------------------------------------------------------HP
         self.write_delta_max = 100#------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 7#-7----------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 27#-7----------------------------------------------------------------------------------------------------HP
         self.cv_max = (num_steps_to_max * self.write_delta_max)
         self.cv_min = -(self.cv_max - 1)
         self.tp = self.rel_idx = self.Bv_index = 0
         self.agency = False
     def update(self):
-        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
-        # fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
-        self.cv = (self.iv | {(self.po.K + a) for a in fbv})
-        self.Bv = self.cv.copy()
+        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
+        self.gt_cv = (self.iv | {(self.po.K + a) for a in fbv})
+        self.Bv = self.gt_cv.copy()
         #_____________________________________________________________________________________________________________________________
         avail_indices = (self.poss_indices - set(self.mem.keys()))
         self.rel_idx = random.choice(list(avail_indices))
-        self.mem[self.rel_idx] = [self.cv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        self.mem[self.rel_idx] = [self.gt_cv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         #_____________________________________________________________________________________________________________________________
         aa_ct = 0
         # self.read_v = self.blank_cv.copy()
@@ -168,22 +167,24 @@ class Matrix:
         if (dist > 0):
             avail_indices = (self.poss_indices - set(self.mem.keys()))
             self.Bv_index = random.choice(list(avail_indices))
+            self.mem[self.Bv_index] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         else:
             cands = [a for a in self.mem.keys() if (len(self.mem[a][0] ^ self.Bv) == dist)]
             self.Bv_index = random.choice(cands)
-        self.mem[self.Bv_index] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
-        norm = float(self.cv_max - 1)
+        # self.mem[self.Bv_index] = [self.Bv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
+        norm_min = float(max(1, abs(min(self.read_v))))
+        norm_max = float(max(1, abs(max(self.read_v))))
         conf_thresh = 0.50#-----------------------------------------------------------------------------------------------------HP
         self.pv = set()
         self.conf_v = []
         for i, a in enumerate(self.read_v):
             if (a > 0):
-                val = (float((a - 1)) / norm)
-                # if (val >= conf_thresh): self.pv.add(i)
-                self.pv.add(i)
+                val = (float(abs(a)) / norm_max)
+                if (val >= conf_thresh): self.pv.add(i)
+                # self.pv.add(i)
                 self.conf_v.append(val)
             else:
-                val = (float(abs(a)) / norm)
+                val = (float(abs(a)) / norm_min)
                 self.conf_v.append(val)
         # print(self.conf_v)
         #____________________________________________________________________________________________________________________________
@@ -209,14 +210,20 @@ class Matrix:
         #____________________________________________________________________________________________________________________________
         # write_delta = 1#-----------------------------------------------------------------------------------------------------------HP
         for i, a in enumerate(self.mem[self.Bv_index][1]):
-            write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max))
-            if (i in self.iv): self.mem[self.Bv_index][1][i] = min(self.cv_max, (self.mem[self.Bv_index][1][i] + write_delta))
-            if (i not in self.iv): self.mem[self.Bv_index][1][i] = max(self.cv_min, (self.mem[self.Bv_index][1][i] - write_delta))
+            if (i in self.iv):
+                write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max))
+                self.mem[self.Bv_index][1][i] = min(self.cv_max, (self.mem[self.Bv_index][1][i] + write_delta))
+            if (i not in self.iv):
+                write_delta = round(self.conf_v[i] * float(self.write_delta_max))
+                self.mem[self.Bv_index][1][i] = max(self.cv_min, (self.mem[self.Bv_index][1][i] - write_delta))
         # write_delta = 1#-----------------------------------------------------------------------------------------------------------HP
         for i, a in enumerate(self.mem[self.rel_idx][1]):
-            write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max))
-            if (i in self.iv): self.mem[self.rel_idx][1][i] = min(self.cv_max, (self.mem[self.rel_idx][1][i] + write_delta))
-            if (i not in self.iv): self.mem[self.rel_idx][1][i] = max(self.cv_min, (self.mem[self.rel_idx][1][i] - write_delta))
+            if (i in self.iv):
+                write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max)) 
+                self.mem[self.rel_idx][1][i] = min(self.cv_max, (self.mem[self.rel_idx][1][i] + write_delta))
+            if (i not in self.iv):
+                write_delta = round(self.conf_v[i] * float(self.write_delta_max)) 
+                self.mem[self.rel_idx][1][i] = max(self.cv_min, (self.mem[self.rel_idx][1][i] - write_delta))
         #____________________________________________________________________________________________________________________________
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
@@ -227,8 +234,8 @@ class Matrix:
             si = list(self.mem.keys())
             random.shuffle(si)
             for a in si:
-                if (self.mem[a][2] > 0): self.mem[a][2] -= 1
-                else:
-                    if ((len(self.mem) + 2) > self.po.Z): del self.mem[a]
+                if ((len(self.mem) + 2) > self.po.Z):
+                    if (self.mem[a][2] > 0): self.mem[a][2] -= 1
+                    else: del self.mem[a]
 oracle = Oracle()
 oracle.update()
