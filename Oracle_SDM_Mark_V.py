@@ -60,8 +60,8 @@ class Oracle:
         #____________________________________________________________________________________________________________________________
         self.K = (gl_index + (self.enc_card - 1))
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
-        self.Z = 177#--------------------------------------------------------------------------------------------------------------HP
-        self.pv_min = 31#-171--------------------------------------------------------------------------------------------------------HP
+        self.Z = 377#--------------------------------------------------------------------------------------------------------------HP
+        self.pv_min = 371#-171-----------------------------------------------------------------------------------------------------HP
         self.pv_range = 1.13#------------------------------------------------------------------------------------------------------HP
         self.pv_max = max((self.pv_min + 1), round(float(self.pv_min) * self.pv_range))
         self.ex_act_val = []
@@ -117,11 +117,10 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.ov = self.Bv = self.Av = self.cv = self.pv = set()
-        self.sample_min = 10#-5!!!should be odd???!!!-musn't be set too high????!!!!-----------------------------------------------HP
-        self.sample_pct = 0.02#----------------------------------------------------------------------------------------------------HP
-        self.aa_factor = 10#-10-----------------------------------------------------------------------------------------------------HP
-        self.write_delta_max = 10#-------------------------------------------------------------------------------------------------HP
-        num_steps_to_max = 17#-67--------------------------------------------------------------------------------------------------HP
+        self.sample_min = 10#-10!!!should be odd???!!!-musn't be set too high????!!!!----------------------------------------------HP
+        self.aa_factor = 10#-10----------------------------------------------------------------------------------------------------HP
+        self.write_delta_max = 100#------------------------------------------------------------------------------------------------HP
+        num_steps_to_max = 7#-7----------------------------------------------------------------------------------------------------HP
         self.cv_max = (num_steps_to_max * self.write_delta_max)
         self.cv_min = -(self.cv_max - 1)
         self.tp = self.rel_idx = self.Bv_index = 0
@@ -137,8 +136,6 @@ class Matrix:
         self.mem[self.rel_idx] = [self.cv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
         #_____________________________________________________________________________________________________________________________
         aa_ct = 0
-        # num_samples_min = max(self.sample_min, round(float(len(self.mem)) * self.sample_pct))
-        num_samples_min = self.sample_min
         # self.read_v = self.blank_cv.copy()
         while ((len(self.Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
             si = list(self.mem.keys())
@@ -147,7 +144,7 @@ class Matrix:
             r = 0
             avg_vA_dict = dict()
             self.read_v = self.blank_cv.copy()
-            while ((len(si) > 0) and (len(skip) < num_samples_min)):
+            while ((len(si) > 0) and (len(skip) < self.sample_min)):
                 for a in si:
                     tav = self.mem[a][0]
                     d = len(tav ^ self.Bv)
@@ -226,13 +223,12 @@ class Matrix:
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #____________________________________________________________________________________________________________________________
-        thresh = 2
-        while ((len(self.mem) + thresh) > self.po.Z):
+        while ((len(self.mem) + 2) > self.po.Z):
             si = list(self.mem.keys())
             random.shuffle(si)
             for a in si:
                 if (self.mem[a][2] > 0): self.mem[a][2] -= 1
                 else:
-                    if ((len(self.mem) + thresh) > self.po.Z): del self.mem[a]
+                    if ((len(self.mem) + 2) > self.po.Z): del self.mem[a]
 oracle = Oracle()
 oracle.update()
