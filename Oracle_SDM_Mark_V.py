@@ -30,9 +30,9 @@ class Oracle:
         # self.conf_range_h = 100.0
         self.rew_delta = self.episode_ct = self.episode_step_ct = self.cycle = self.cumul_rew = self.rew_prev = self.rew_metric = 0
         self.env_seed = 123456#---------------------------------------------------------------------------------------------------HP
-        # self.num_values = (round(truncated_val * 2.0) + 1)
-        self.num_values = 7
-        self.enc_card = 4#-9-should be even???------------------------------------------------------------------------------------HP
+        # self.num_values = (round(truncated_val * 2.0) + 1)#-must be odd!!!
+        self.num_values = 13#-must be odd!!!
+        self.enc_card = 3#-should be even???--------------------------------------------------------------------------------------HP
         #____________________________________________________DATA EMBEDDING_________________________________________________________
         gl_index = 0
         self.obs_vals = dict()
@@ -133,13 +133,12 @@ class Matrix:
         # fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
         self.gt_cv = (self.iv | {(self.po.K + a) for a in fbv})
         self.Bv = self.gt_cv.copy()
-        self.vi = set()
         #_____________________________________________________________________________________________________________________________
         avail_indices = (self.poss_indices - set(self.mem.keys()))
         self.rel_idx = random.choice(list(avail_indices))
         self.mem[self.rel_idx] = [self.gt_cv.copy(), self.blank_cv.copy(), random.randrange(self.po.pv_min, self.po.pv_max)]
-        self.vi.add(self.rel_idx)
         #_____________________________________________________________________________________________________________________________
+        self.vi = set()
         aa_ct = 0
         # self.read_v = self.blank_cv.copy()
         while ((len(self.Bv ^ self.Av) > 0) and (aa_ct < self.aa_factor)):
@@ -207,10 +206,12 @@ class Matrix:
             else:
                 self.pv -= self.po.ppcv
                 # self.conf_v = ([1.0] * self.po.K)#----------I THINK THIS CAUSES ISSUES????!!!!!
+                self.vi = set()
         else: self.iv = self.po.m[self.ffi].ov.copy()
         self.ov = (self.iv ^ self.pv)
         erm = ((float(len(self.ov)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
         #____________________________________________________________________________________________________________________________
+        self.vi.add(self.rel_idx)
         for a in self.vi:
             for i, b in enumerate(self.mem[a][1]):
                 # write_delta = round((1.0 - self.conf_v[i]) * float(self.write_delta_max))
@@ -226,11 +227,11 @@ class Matrix:
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
         print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" + agency_str)
         #____________________________________________________________________________________________________________________________
-        while ((len(self.mem) + 2) > self.po.Z):
+        while ((len(self.mem) + 1) > self.po.Z):
             si = list(self.mem.keys())
             random.shuffle(si)
             for a in si:
-                if ((len(self.mem) + 2) > self.po.Z):
+                if ((len(self.mem) + 1) > self.po.Z):
                     if (self.mem[a][2] > 0): self.mem[a][2] -= 1
                     else: del self.mem[a]
 oracle = Oracle()
