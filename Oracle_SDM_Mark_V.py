@@ -67,7 +67,7 @@ class Oracle:
         # gl_index += (self.num_values + (self.enc_card - 1))
         #____________________________________________________________________________________________________________________________
         self.K = gl_index
-        self.H = 3#----------------------------------------------------------------------------------------------------------------HP
+        self.H = 2#----------------------------------------------------------------------------------------------------------------HP
         self.Z = 577#--------------------------------------------------------------------------------------------------------------HP
         self.pv_max = 10000#--------------------------------------------------------------------------------------------------------HP
         self.pv_min = -self.pv_max
@@ -155,11 +155,11 @@ class Matrix:
         self.target_v_error = self.target_v_error_prev = self.novelty_factor = 0
         for a in self.po.act_vals.keys():
             for value in self.po.act_vals[a].values():
-                self.act_mask |= value[1]
+                self.act_mask |= value[1]  
     def update(self):
         #-----TODO: attentional masking and explicit control of noise masking
-        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
-        fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        # fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
         if (self.context_dim == 2): self.gt_cv = (self.iv | {(self.po.K + a) for a in fbv})
         if (self.context_dim == 3): self.gt_cv = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + b) for b in fbv})
         self.Bv = self.gt_cv.copy()
@@ -216,24 +216,29 @@ class Matrix:
                 self.mem[self.novel_index] = [self.Bv.copy(), self.blank_cv.copy(), self.po.pv_max]
                 # self.vi.add(self.novel_index)
         #___________________________________________________________________________________________________________________________
-        conf_thresh = 0.30#-musn't be set too high!!!!!-------------------------------------------------------------------------HP
+        conf_thresh = 0.10#-musn't be set too high!!!!!-------------------------------------------------------------------------HP
         self.pv = set()
         # self.conf_v = []
-        norm = float(self.cv_max - 1)
+        upper = [a for a in self.read_v if (a > 0)]
+        if (len(upper) == 0): upper = [1]
+        norm_max = float(max(upper))
+        lower = [abs(a) for a in self.read_v if (a <= 0)]
+        if (len(lower) == 0): lower = [1]
+        norm_min = float(max(lower))
         for i, a in enumerate(self.read_v):
             if (a > 0):
-                val = (float(a - 1) / norm)
-                if (val >= conf_thresh): self.pv.add(i)#--THIS MAY CAUSE ISSUES???
-                # self.pv.add(i)
+                # val = (float(a) / norm_max)
+                # if (val >= conf_thresh): self.pv.add(i)#--THIS MAY CAUSE ISSUES???
+                self.pv.add(i)
                 # self.conf_v.append(val)
             else:
                 pass
-                # val = (float(abs(a)) / norm)
+                # val = (float(abs(a)) / norm_min)
                 # self.conf_v.append(val)
         #____________________________________________________________________________________________________________________________
         if (self.mi == 0): self.pv |= self.target_v
         #____________________________________________________________________________________________________________________________
-        if (self.mi == 0):
+        if (self.mi == 0):#---TODO:--------------------------extend this or something like it to all matrices!!!!
             self.ppcv = set()
             for a in self.po.act_vals.keys():
                 for value in self.po.act_vals[a].values(): self.ppcv |= (value[1] & self.pv)
@@ -255,9 +260,10 @@ class Matrix:
                 self.pv |= self.ppcv
             #------TODO: embed RL signals and prediction confidence into input
             self.iv = self.po.interface_env(self.pv.copy()).copy()
-            # self.iv |= self.ppcv#-------THIS MAY BE CAUSING ISSUES!!!!!!!!!!
+            # self.iv |= self.ppcv#-------THIS MAY BE CAUSING ISSUES!!!!!!!!!!TODO: FIGURE OUT IF I NEED THIS HERE!!!!!!!
         else: self.iv = self.po.m[self.ffi].pev.copy()
         self.pev = (self.iv ^ self.pv)
+        # self.pev = ((self.iv | self.ppcv) ^ self.pv)#------IS THIS HELPFUL?????????
         self.target_v_error = (float(len(self.target_v & self.pev)) / float(len(self.target_v)))
         target_v_error_delta = (self.target_v_error - self.target_v_error_prev)
         self.target_v_error_prev = self.target_v_error
@@ -265,9 +271,6 @@ class Matrix:
         #____________________________________________________________________________________________________________________________
         norm = float(self.cv_max - 1)
         conf = 0
-        self.vi = set()
-        self.vi.add(self.gt_cv_index)
-        if (self.novel_index != -1): self.vi.add(self.novel_index)
         for a in self.vi:
             for i, b in enumerate(self.mem[a][1]):
                 if (self.mem[a][1][i] > 0): conf = (float(self.mem[a][1][i] - 1) / norm)
@@ -295,11 +298,13 @@ class Matrix:
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
-        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" +
-              f"\tREW: {(self.po.rew_metric * 100.0):.2f}%\tNOV: {self.novelty_factor}" + agency_str)
+        # print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" +
+        #       f"\tREW: {(self.po.rew_metric * 100.0):.2f}%\tNOV: {self.novelty_factor}" + agency_str)
         #____________________________________________________________________________________________________________________________
-        # indices = (set(self.mem.keys()) - self.vi)
-        indices = set(self.mem.keys())
+        indices = (set(self.mem.keys()) - self.vi)
+        # indices = set(self.mem.keys())
+        if (self.gt_cv_index in indices): indices.remove(self.gt_cv_index)
+        if (self.novel_index in indices): indices.remove(self.novel_index)
         for a in indices:
             if (self.mem[a][2] > 0): self.mem[a][2] -= 1
         while ((len(indices) + 2) > self.po.Z):
