@@ -152,7 +152,7 @@ class Matrix:
         self.agency = False
         self.act_mask = set()
         self.target_v = self.po.rew_vals[(self.po.num_values - 1)][1].copy()
-        self.target_v_error = self.target_v_error_prev = 0
+        self.target_v_error = self.target_v_error_prev = self.novelty_factor = 0
         for a in self.po.act_vals.keys():
             for value in self.po.act_vals[a].values():
                 self.act_mask |= value[1]
@@ -167,7 +167,7 @@ class Matrix:
         avail_indices = (self.poss_indices - set(self.mem.keys()) - self.vi)
         if (len(avail_indices) > 0):
             self.gt_cv_index = random.choice(list(avail_indices))
-            self.mem[self.gt_cv_index] = [self.gt_cv.copy(), self.blank_cv.copy(), self.po.pv_initial]
+            self.mem[self.gt_cv_index] = [self.gt_cv.copy(), self.blank_cv.copy(), self.po.pv_max]
         #_____________________________________________________________________________________________________________________________
         self.vi = set()
         # self.read_v = self.blank_cv.copy()
@@ -206,25 +206,25 @@ class Matrix:
             self.Av = self.Bv.copy()
             self.Bv = {i for i, a in enumerate(avg_av_list) if (a > 0)}
         #___________________________________________________________________________________________________________________________
-        novelty_factor = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys())
+        self.novelty_factor = min(len(self.mem[a][0] ^ self.Bv) for a in self.mem.keys())
         #--------------------------TODO: use novelty_factor to optimize...
         self.novel_index = -1
-        if (novelty_factor > 0):
+        if (self.novelty_factor > 0):
             avail_indices = (self.poss_indices - set(self.mem.keys()) - self.vi)
             if (len(avail_indices) > 0):
                 self.novel_index = random.choice(list(avail_indices))
-                self.mem[self.novel_index] = [self.Bv.copy(), self.blank_cv.copy(), self.po.pv_initial]
-                self.vi.add(self.novel_index)
+                self.mem[self.novel_index] = [self.Bv.copy(), self.blank_cv.copy(), self.po.pv_max]
+                # self.vi.add(self.novel_index)
         #___________________________________________________________________________________________________________________________
-        conf_thresh = 0.10#-----------------------------------------------------------------------------------------------------HP
+        conf_thresh = 0.30#-musn't be set too high!!!!!-------------------------------------------------------------------------HP
         self.pv = set()
         # self.conf_v = []
-        # norm = float(self.cv_max - 1)
+        norm = float(self.cv_max - 1)
         for i, a in enumerate(self.read_v):
             if (a > 0):
-                # val = (float(a - 1) / norm)
-                # if (val >= conf_thresh): self.pv.add(i)#--THIS MAY CAUSE ISSUES???
-                self.pv.add(i)
+                val = (float(a - 1) / norm)
+                if (val >= conf_thresh): self.pv.add(i)#--THIS MAY CAUSE ISSUES???
+                # self.pv.add(i)
                 # self.conf_v.append(val)
             else:
                 pass
@@ -245,7 +245,8 @@ class Matrix:
             #     riB = random.choice(list(self.po.act_vals[riA].keys()))
             #     self.ppcv = self.po.act_vals[riA][riB][1].copy()
             #     self.pv |= self.ppcv
-            if (random.randrange(1000000) < 500000):
+            if (random.randrange(1000000) < 450000):
+            # if (random.randrange(1000000) < 500000):
                 self.agency = False
                 self.pv -= self.ppcv
                 riA = random.choice(list(self.po.act_vals.keys()))
@@ -272,9 +273,9 @@ class Matrix:
                 if (self.mem[a][1][i] > 0): conf = (float(self.mem[a][1][i] - 1) / norm)
                 else: conf = (float(abs(self.mem[a][1][i])) / norm)
                 # conf = self.conf_v[i]
-                if ((self.mi == 0) and (i in self.ppcv)):
+                if (i in self.ppcv):
                     # write_delta = round(target_v_error_delta * (1.0 - conf) * 960.0)#----------------------------------------------HP
-                    write_delta = round(target_v_error_delta * 1260.0)#----------------------------------------------HP
+                    write_delta = round(target_v_error_delta * 1560.0)#----------------------------------------------HP
                     # print(write_delta)
                     if (write_delta != 0):
                         val = (self.mem[a][1][i] + write_delta)
@@ -294,9 +295,11 @@ class Matrix:
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
-        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}\tREW: {(self.po.rew_metric * 100.0):.2f}%" + agency_str)
+        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" +
+              f"\tREW: {(self.po.rew_metric * 100.0):.2f}%\tNOV: {self.novelty_factor}" + agency_str)
         #____________________________________________________________________________________________________________________________
-        indices = (set(self.mem.keys()) - self.vi)
+        # indices = (set(self.mem.keys()) - self.vi)
+        indices = set(self.mem.keys())
         for a in indices:
             if (self.mem[a][2] > 0): self.mem[a][2] -= 1
         while ((len(indices) + 2) > self.po.Z):
