@@ -144,9 +144,9 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.pev = self.Bv = self.Av = self.gt_cv = self.pv = self.vi = self.ppcv = set()
-        self.r_max = 40#-musn't be too low!!!!----------------------------------------------------------------------------------HP
-        self.num_samples_min = 7#-should be odd!!!-----------------------------------------------------------------------------HP
-        self.cv_max = 5000#-------------------------------------------------------------------------------------------------------HP
+        self.r_max = 50#-musn't be too low!!!!----------------------------------------------------------------------------------HP
+        self.num_samples_min = 5#-should be odd!!!-----------------------------------------------------------------------------HP
+        self.cv_max = 10000#-musn't be too low!!!!!-------------------------------------------------------------------------------HP
         self.cv_min = -(self.cv_max - 1)
         self.tp = self.gt_cv_index = self.novel_index = 0
         self.agency = False
@@ -163,14 +163,15 @@ class Matrix:
         if (self.context_dim == 2): self.gt_cv = (self.iv | {(self.po.K + a) for a in fbv})
         if (self.context_dim == 3): self.gt_cv = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + b) for b in fbv})
         self.Bv = self.gt_cv.copy()
+        self.vi = set()
         #_____________________________________________________________________________________________________________________________
         avail_indices = (self.poss_indices - set(self.mem.keys()) - self.vi)
         if (len(avail_indices) > 0):
             self.gt_cv_index = random.choice(list(avail_indices))
             self.mem[self.gt_cv_index] = [self.gt_cv.copy(), self.blank_cv.copy(), self.po.pv_max]
+            self.vi.add(self.gt_cv_index)
         #_____________________________________________________________________________________________________________________________
-        self.vi = set()
-        # self.read_v = self.blank_cv.copy()
+        self.read_v = self.blank_cv.copy()
         while (len(self.Av ^ self.Bv) > 0):
             si = list(self.mem.keys())
             random.shuffle(si)
@@ -179,7 +180,7 @@ class Matrix:
             avg_av_list = self.blank_av.copy()
             self.read_v = self.blank_cv.copy()
             num_attempts = 0
-            num_attempts_max = 1000
+            num_attempts_max = 10
             # while ((len(si) > 0) and (r < self.r_max)):
             # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min)):
             while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (num_attempts < num_attempts_max)):
@@ -197,7 +198,6 @@ class Matrix:
                             if (self.read_v[i] > 0): val = min((self.po.max_int - self.read_v[i]),  (b * sc))
                             else: val = max((self.po.min_int - self.read_v[i]),  (b * sc))
                             self.read_v[i] += val
-                        # self.mem[a][2] = min((self.mem[a][2] + 800), self.po.pv_max)#-musn't be too low!!!!!!!!!----------------HP
                         self.mem[a][2] = self.po.pv_max
                         self.vi.add(a)
                 si = [c for c in si if (c not in self.vi)]
@@ -214,58 +214,50 @@ class Matrix:
             if (len(avail_indices) > 0):
                 self.novel_index = random.choice(list(avail_indices))
                 self.mem[self.novel_index] = [self.Bv.copy(), self.blank_cv.copy(), self.po.pv_max]
-                # self.vi.add(self.novel_index)
+                self.vi.add(self.novel_index)
         #___________________________________________________________________________________________________________________________
-        conf_thresh = 0.10#-musn't be set too high!!!!!-------------------------------------------------------------------------HP
-        self.pv = set()
+        self.pv = {i for i, a in enumerate(self.read_v) if (a > 0)}
+        # self.pv = set()
+        # conf_thresh = 0.10#-musn't be set too high!!!!!-------------------------------------------------------------------------HP
         # self.conf_v = []
-        upper = [a for a in self.read_v if (a > 0)]
-        if (len(upper) == 0): upper = [1]
-        norm_max = float(max(upper))
-        lower = [abs(a) for a in self.read_v if (a <= 0)]
-        if (len(lower) == 0): lower = [1]
-        norm_min = float(max(lower))
-        for i, a in enumerate(self.read_v):
-            if (a > 0):
-                # val = (float(a) / norm_max)
-                # if (val >= conf_thresh): self.pv.add(i)#--THIS MAY CAUSE ISSUES???
-                self.pv.add(i)
-                # self.conf_v.append(val)
-            else:
-                pass
-                # val = (float(abs(a)) / norm_min)
-                # self.conf_v.append(val)
+        # upper = [a for a in self.read_v if (a > 0)]
+        # if (len(upper) == 0): upper = [1]
+        # norm_max = float(max(upper))
+        # lower = [abs(a) for a in self.read_v if (a <= 0)]
+        # if (len(lower) == 0): lower = [1]
+        # norm_min = float(max(1, max(lower)))
+        # for i, a in enumerate(self.read_v):
+        #     if (a > 0):
+        #         val = (float(a) / norm_max)
+        #         if (val >= conf_thresh): self.pv.add(i)#--THIS MAY CAUSE ISSUES???
+        #     else:
+        #         val = (float(abs(a)) / norm_min)
+        #     self.conf_v.append(val)
         #____________________________________________________________________________________________________________________________
-        if (self.mi == 0): self.pv |= self.target_v
+        target_belief = (float(len(self.target_v & self.pv)) / float(len(self.target_v)))
+        if (self.mi == 0): self.pv |= self.target_v#-----------IDK IF THIS IS A GOOD IDEA OR EVEN NECESSARY?????????????
         #____________________________________________________________________________________________________________________________
         if (self.mi == 0):#---TODO:--------------------------extend this or something like it to all matrices!!!!
             self.ppcv = set()
             for a in self.po.act_vals.keys():
                 for value in self.po.act_vals[a].values(): self.ppcv |= (value[1] & self.pv)
             self.agency = (len(self.ppcv) > 0)
-            # if ((not self.agency) and (random.randrange(1000000) < 500000)):#-motor babble------------------------------------HP
-            # # if (random.randrange(1000000) < 100000):#-motor babble------------------------------------------------------------------HP
-            # # if (not self.agency):
-            #     riA = random.choice(list(self.po.act_vals.keys()))
-            #     riB = random.choice(list(self.po.act_vals[riA].keys()))
-            #     self.ppcv = self.po.act_vals[riA][riB][1].copy()
-            #     self.pv |= self.ppcv
-            if (random.randrange(1000000) < 450000):
-            # if (random.randrange(1000000) < 500000):
+            # if ((not self.agency) and random.randrange(1000000) < 100000)):
+            if (random.randrange(1000000) < 500000):
                 self.agency = False
-                self.pv -= self.ppcv
+                if (self.agency): self.pv -= self.ppcv
                 riA = random.choice(list(self.po.act_vals.keys()))
                 riB = random.choice(list(self.po.act_vals[riA].keys()))
                 self.ppcv = self.po.act_vals[riA][riB][1].copy()
                 self.pv |= self.ppcv
             #------TODO: embed RL signals and prediction confidence into input
             self.iv = self.po.interface_env(self.pv.copy()).copy()
-            # self.iv |= self.ppcv#-------THIS MAY BE CAUSING ISSUES!!!!!!!!!!TODO: FIGURE OUT IF I NEED THIS HERE!!!!!!!
+            self.iv |= self.ppcv#-------THIS MAY BE CAUSING ISSUES!!!!!!!!!!TODO: FIGURE OUT IF I NEED THIS HERE!!!!!!!
         else: self.iv = self.po.m[self.ffi].pev.copy()
         self.pev = (self.iv ^ self.pv)
-        # self.pev = ((self.iv | self.ppcv) ^ self.pv)#------IS THIS HELPFUL?????????
-        self.target_v_error = (float(len(self.target_v & self.pev)) / float(len(self.target_v)))
-        target_v_error_delta = (self.target_v_error - self.target_v_error_prev)
+        self.target_v_error = (float(len(self.target_v & self.iv)) / float(len(self.target_v)))
+        target_v_error_delta = (self.target_v_error - self.target_v_error_prev)#-only changes by (1 / len(self.target_v)) at a time!!!!
+        target_v_error_delta_sign = 1.0 if (target_v_error_delta >= 0) else -1.0
         self.target_v_error_prev = self.target_v_error
         erm = ((float(len(self.pev)) / float(max(1, (len(self.iv) + len(self.pv))))) * 100.0)
         #____________________________________________________________________________________________________________________________
@@ -273,12 +265,12 @@ class Matrix:
         conf = 0
         for a in self.vi:
             for i, b in enumerate(self.mem[a][1]):
-                if (self.mem[a][1][i] > 0): conf = (float(self.mem[a][1][i] - 1) / norm)
-                else: conf = (float(abs(self.mem[a][1][i])) / norm)
+                # if (self.mem[a][1][i] > 0): conf = (float(self.mem[a][1][i] - 1) / norm)
+                # else: conf = (float(abs(self.mem[a][1][i])) / norm)
                 # conf = self.conf_v[i]
                 if (i in self.ppcv):
-                    # write_delta = round(target_v_error_delta * (1.0 - conf) * 960.0)#----------------------------------------------HP
-                    write_delta = round(target_v_error_delta * 1560.0)#----------------------------------------------HP
+                    write_delta = round(target_v_error_delta_sign * (1.0 - self.target_v_error) * 15.0)#--------------------------HP
+                    # write_delta = round((1.0 - conf) * target_v_error_delta_sign * (1.0 - self.target_v_error) * 15.0)#-----------HP
                     # print(write_delta)
                     if (write_delta != 0):
                         val = (self.mem[a][1][i] + write_delta)
@@ -286,7 +278,7 @@ class Matrix:
                         if (val > self.cv_max): val = self.cv_max
                         self.mem[a][1][i] = val
                 else:
-                    # write_delta = round((1.10 - conf) * 0.001 * 10000.0)#-------------------------------------------------------------HP
+                    # write_delta = round((1.0 - conf) * 10.0)#--------------------------------------------------------------------HP
                     write_delta = 1
                     # print(write_delta)
                     if (write_delta != 0):
@@ -298,13 +290,11 @@ class Matrix:
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
-        # print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}" +
-        #       f"\tREW: {(self.po.rew_metric * 100.0):.2f}%\tNOV: {self.novelty_factor}" + agency_str)
+        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}\tTB: {target_belief:.2f}%\tTA: {self.target_v_error:.2f}" +
+              f"\tREW: {(self.po.rew_metric * 100.0):.2f}%\tNOV: {self.novelty_factor}" + agency_str)
         #____________________________________________________________________________________________________________________________
         indices = (set(self.mem.keys()) - self.vi)
         # indices = set(self.mem.keys())
-        if (self.gt_cv_index in indices): indices.remove(self.gt_cv_index)
-        if (self.novel_index in indices): indices.remove(self.novel_index)
         for a in indices:
             if (self.mem[a][2] > 0): self.mem[a][2] -= 1
         while ((len(indices) + 2) > self.po.Z):
