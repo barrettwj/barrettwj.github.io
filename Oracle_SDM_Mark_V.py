@@ -70,9 +70,6 @@ class Oracle:
         self.H = 2#----------------------------------------------------------------------------------------------------------------HP
         self.Z = 577#--------------------------------------------------------------------------------------------------------------HP
         self.pv_max = 10000#--------------------------------------------------------------------------------------------------------HP
-        self.pv_min = -self.pv_max
-        self.pv_initial_pct = 1.0#------------------------------------------------------------------------------------------------HP
-        self.pv_initial = round(float(self.pv_max) * self.pv_initial_pct)
         self.ex_act_val = []
         self.run_continuous = True
         self.m = [Matrix(self, a) for a in range(self.H)]
@@ -140,7 +137,7 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.pev = self.Bv = self.Av = self.gt_cv = self.pv = self.vi = self.ppcv = set()
-        self.num_samples_min = 3#-should be odd and not set too high!!!--------------------------------------------------------HP
+        self.num_samples_min = 5#-should be odd and not set too high!!!--------------------------------------------------------HP
         self.cv_max = 2000#-musn't be too low!!!!!-------------------------------------------------------------------------------HP
         self.cv_min = -(self.cv_max - 1)
         self.tp = self.gt_cv_index = self.novel_index = 0
@@ -166,7 +163,7 @@ class Matrix:
             self.vi.add(self.gt_cv_index)
         #_____________________________________________________________________________________________________________________________
         self.read_v = self.blank_cv.copy()
-        self.r_sc_factor = 1.10#----------------------------------------------------------------------------------------------------HP
+        self.r_sc_factor = 2.0#----------------------------------------------------------------------------------------------------HP
         while (len(self.Av ^ self.Bv) > 0):
             si = list(self.mem.keys())
             random.shuffle(si)
@@ -179,14 +176,14 @@ class Matrix:
             sc = 1
             # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min)):
             # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (num_attempts < num_attempts_max)):
-            while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (sc > 0) and (num_attempts < num_attempts_max)):
-            # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (sc > 0)):
+            # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (sc > 0) and (num_attempts < num_attempts_max)):
+            while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (sc > 0)):
+                # sc = round(10.0 / float(r + 1))
+                sc = round(50.0 / math.pow(self.r_sc_factor, float(r)))
                 for a in si:
                     tav = self.mem[a][0]
                     d = len(tav ^ self.Bv)
                     if (d == r):
-                        # sc = round(10.0 / float(r + 1))
-                        # sc = round(10.0 / math.pow(self.r_sc_factor, float(r)))
                         for i, b in enumerate(avg_av_list): avg_av_list[i] += (sc if (i in tav) else -sc)
                         # for i, b in enumerate(avg_av_list): avg_av_list[i] += 1 if (i in tav) else -1
                         for i, b in enumerate(self.mem[a][1]):
@@ -272,7 +269,8 @@ class Matrix:
                         self.mem[a][1][i] = val
                 else:
                     # write_delta = round((1.0 - conf) * 10.0)#--------------------------------------------------------------------HP
-                    write_delta = 50
+                    # write_delta = 50
+                    write_delta = 1
                     # print(write_delta)
                     if (write_delta != 0):
                         if (i in self.iv):
@@ -297,5 +295,6 @@ class Matrix:
             ri = random.choice(cands)
             indices.remove(ri)
             del self.mem[ri]
+random.seed(123456)#-------------------------------------------------------------------------------------------------HP
 oracle = Oracle()
 oracle.update()
