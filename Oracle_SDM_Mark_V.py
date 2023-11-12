@@ -235,7 +235,7 @@ class Matrix:
         #     self.conf_v.append(val)
         #____________________________________________________________________________________________________________________________
         target_belief = (float(len(self.target_v & self.pv)) / float(len(self.target_v)))
-        if (self.mi == 0): self.pv |= self.target_v#-----------IDK IF THIS IS A GOOD IDEA OR EVEN NECESSARY?????????????
+        # if (self.mi == 0): self.pv |= self.target_v#-----------IDK IF THIS IS A GOOD IDEA OR EVEN NECESSARY?????????????
         #____________________________________________________________________________________________________________________________
         if (self.mi == 0):#---TODO:--------------------------extend this or something like it to all matrices!!!!
             self.ppcv = set()
@@ -245,7 +245,7 @@ class Matrix:
             # if ((not self.agency) and random.randrange(1000000) < 100000)):
             if (random.randrange(1000000) < 500000):
                 self.agency = False
-                if (self.agency): self.pv -= self.ppcv
+                if (len(self.ppcv) > 0): self.pv -= self.ppcv
                 riA = random.choice(list(self.po.act_vals.keys()))
                 riB = random.choice(list(self.po.act_vals[riA].keys()))
                 self.ppcv = self.po.act_vals[riA][riB][1].copy()
@@ -290,8 +290,9 @@ class Matrix:
         self.tp = sum((len(self.mem[a][0]) + len(self.mem[a][1]) + 2) for a in self.mem.keys())
         agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.agency) else ""
         # agency_str = f"\tEX_ACT: {self.po.ex_act_val[0]:.4f}" if (self.mi == 0) else ""
-        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}\tTB: {target_belief:.2f}%\tTA: {self.target_v_error:.2f}" +
-              f"\tREW: {(self.po.rew_metric * 100.0):.2f}%\tNOV: {self.novelty_factor}" + agency_str)
+        print(f"M{self.mi}\tER: {erm:.2f}%\tTP: {self.tp}\tMEM: {len(self.mem.keys())}\tTB: {target_belief:.2f}%" +
+              f"\tTA: {self.target_v_error:.2f}%\tREW: {(self.po.rew_metric * 100.0):.2f}%\tNOV: {self.novelty_factor}" +
+              agency_str)
         #____________________________________________________________________________________________________________________________
         indices = (set(self.mem.keys()) - self.vi)
         # indices = set(self.mem.keys())
