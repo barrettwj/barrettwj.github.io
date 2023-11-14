@@ -67,7 +67,7 @@ class Oracle:
         # gl_index += (self.num_values + (self.enc_card - 1))
         #____________________________________________________________________________________________________________________________
         self.K = gl_index
-        self.H = 2#----------------------------------------------------------------------------------------------------------------HP
+        self.H = 3#----------------------------------------------------------------------------------------------------------------HP
         self.Z = 577#--------------------------------------------------------------------------------------------------------------HP
         self.pv_max = 10000#--------------------------------------------------------------------------------------------------------HP
         self.ex_act_val = []
@@ -137,8 +137,8 @@ class Matrix:
         self.poss_indices = set(range(self.po.Z))
         self.mem = dict()
         self.iv = self.pev = self.Bv = self.Av = self.gt_cv = self.pv = self.vi = self.ppcv = set()
-        self.num_samples_min = 5#-should be odd and not set too high!!!--------------------------------------------------------HP
-        self.cv_max = 2000#-musn't be too low!!!!!-------------------------------------------------------------------------------HP
+        self.num_samples_min = 19#-should be odd and not set too high!!!--------------------------------------------------------HP
+        self.cv_max = 5000#-musn't be too low!!!!!-------------------------------------------------------------------------------HP
         self.cv_min = -(self.cv_max - 1)
         self.tp = self.gt_cv_index = self.novel_index = 0
         self.agency = False
@@ -149,8 +149,8 @@ class Matrix:
             for value in self.po.act_vals[a].values(): self.act_mask |= value[1]
     def update(self):
         #-----TODO: attentional masking and explicit control of noise masking
-        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
-        fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        # fbv = self.po.m[self.fbi].pv.copy()#--------------------------I think this is causing issues???YES!!!IT IS!!!because of mb!!!
         if (self.context_dim == 2): self.gt_cv = (self.iv | {(self.po.K + a) for a in fbv})
         if (self.context_dim == 3): self.gt_cv = (self.iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + b) for b in fbv})
         self.Bv = self.gt_cv.copy()
@@ -173,13 +173,13 @@ class Matrix:
             self.read_v = self.blank_cv.copy()
             num_attempts = 0
             num_attempts_max = 100#--------------------------------------------------------------------------------------------------HP
-            sc = 1
+            sc = round(10.0 / math.pow(self.r_sc_factor, float(r)))
             # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min)):
             # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (num_attempts < num_attempts_max)):
             # while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (sc > 0) and (num_attempts < num_attempts_max)):
             while ((len(si) > 0) and (len(self.vi) < self.num_samples_min) and (sc > 0)):
                 # sc = round(10.0 / float(r + 1))
-                sc = round(50.0 / math.pow(self.r_sc_factor, float(r)))
+                sc = round(10.0 / math.pow(self.r_sc_factor, float(r)))
                 for a in si:
                     tav = self.mem[a][0]
                     d = len(tav ^ self.Bv)
@@ -229,10 +229,11 @@ class Matrix:
         target_belief = (float(len(self.target_v & self.pv)) / float(len(self.target_v)))
         # if (self.mi == 0): self.pv |= self.target_v#-----------IDK IF THIS IS A GOOD IDEA OR EVEN NECESSARY?????????????
         #____________________________________________________________________________________________________________________________
+        self.ppcv = (self.act_mask & self.pv)
         if (self.mi == 0):#---TODO:--------------------------extend this or something like it to all matrices!!!!
-            self.ppcv = (self.act_mask & self.pv)
+            # self.ppcv = (self.act_mask & self.pv)
             self.agency = (len(self.ppcv) > 0)
-            # if ((not self.agency) and random.randrange(1000000) < 100000)):
+            # if ((not self.agency) and (random.randrange(1000000) < 500000)):
             if (random.randrange(1000000) < 500000):
                 self.agency = False
                 if (len(self.ppcv) > 0): self.pv -= self.ppcv
@@ -243,7 +244,9 @@ class Matrix:
             #------TODO: embed RL signals and prediction confidence into input
             self.iv = self.po.interface_env(self.pv).copy()
             self.iv |= self.ppcv#-------THIS MAY BE CAUSING ISSUES!!!!!!!!!!TODO: FIGURE OUT IF I NEED THIS HERE!!!!!!!
-        else: self.iv = self.po.m[self.ffi].pev.copy()
+        else:
+            self.iv = self.po.m[self.ffi].pev.copy()
+            # self.ppcv = self.target_v.copy()
         self.pev = (self.iv ^ self.pv)
         self.target_v_error = (float(len(self.target_v & self.iv)) / float(len(self.target_v)))
         target_v_error_delta = (self.target_v_error - self.target_v_error_prev)#-only changes by (1 / len(self.target_v)) at a time!!!!
@@ -269,8 +272,8 @@ class Matrix:
                         self.mem[a][1][i] = val
                 else:
                     # write_delta = round((1.0 - conf) * 10.0)#--------------------------------------------------------------------HP
-                    # write_delta = 50
-                    write_delta = 1
+                    write_delta = 50
+                    # write_delta = 1
                     # print(write_delta)
                     if (write_delta != 0):
                         if (i in self.iv):
@@ -295,6 +298,6 @@ class Matrix:
             ri = random.choice(cands)
             indices.remove(ri)
             del self.mem[ri]
-random.seed(123456)#-------------------------------------------------------------------------------------------------HP
+# random.seed(123456)#-------------------------------------------------------------------------------------------------HP
 oracle = Oracle()
 oracle.update()
