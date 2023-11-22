@@ -4,16 +4,17 @@ class Oracle:
     def __init__(self):
         self.max_int = (sys.maxsize - 1000)
         self.min_int = -(self.max_int - 1)
-        self.H = 6#--------------------------------------------------------------------------------------------------------HP
-        self.input_dim = 64#-----------------------------------------------------------------------------------------------HP
+        self.H = 3#---------------------------------------------------------------------------------------------------------------HP
+        self.input_dim = 64#------------------------------------------------------------------------------------------------------HP
         self.ppcL = (self.input_dim - 1)
         self.ppcR = (self.input_dim - 2)
         self.ds_range_set = {a for a in range(self.input_dim)}
         self.ds_range_set.remove(self.ppcL)
         self.ds_range_set.remove(self.ppcR)
         self.ds_index = 0
-        self.ds_card = 50#-------------------------------------------------------------------------------------------------HP
-        self.ds_dim = 20#--------------------------------------------------------------------------------------------------HP
+        ds_card_pct = 0.20#-------------------------------------------------------------------------------------------------------HP
+        self.ds_card = round(float(len(self.ds_range_set)) * ds_card_pct)
+        self.ds_dim = 10#---------------------------------------------------------------------------------------------------------HP
         self.ds = [set(random.sample(list(self.ds_range_set), self.ds_card)) for _ in range(self.ds_dim)]
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
@@ -22,16 +23,18 @@ class Oracle:
 class Matrix:
     def __init__(self, po_in, mi_in):
         self.po = po_in
+        self.mi = mi_in
         self.ffi = (mi_in - 1)
         self.fbi = ((mi_in + 1) % self.po.H)
+        self.fb_mode = 1#---------------------------------------------------------------------------------------------------------HP
         self.context_dim = 3#-----------------------------------------------------------------------------------------------------HP
-        self.iv = self.cv = self.pv = self.pev = set()
-        avec = ([0] * self.po.input_dim * self.context_dim)
-        self.e = {a:avec.copy() for a in range(self.po.input_dim)}
-        max_cv = ((self.po.max_int - 10) // len(avec))
-        self.cv_delta_mag = 100000.0#---------------------------------------------------------------------------------------------HP
+        self.iv = self.cv = self.pv = self.pev = self.bel_v = set()
+        self.avec = ([0] * self.po.input_dim * self.context_dim)
+        self.e = {a:self.avec.copy() for a in range(self.po.input_dim)}
+        max_cv = ((self.po.max_int - 10) // len(self.avec))
+        self.cv_delta_mag = 1000.0#-100000.0--------------------------------------------------------------------------------------HP
         max_cv_range = (max_cv // round(self.cv_delta_mag))
-        self.cv_max = min(1000000, max_cv_range)#---------------------------------------------------------------------------------HP
+        self.cv_max = min(10000, max_cv_range)#-1000000---------------------------------------------------------------------------HP
         self.cv_min = -(self.cv_max - 1)
         self.agency = False
         self.beh = 0
@@ -40,11 +43,37 @@ class Matrix:
         self.beh_data_pv = 100#---------------------------------------------------------------------------------------------------HP
         self.em = 0
     def update(self):
-        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
-        fbv = self.po.m[self.fbi].pv.copy()
-        self.cv = (self.iv | {(a + self.po.input_dim) for a in self.pv} | {(a + (self.po.input_dim * 2)) for a in fbv})
-        # self.cv = (self.iv | {(a + self.po.input_dim) for a in fbv})
-        #--TODO: probabilistic activation based on conf levels
+        #____________________________________________________________________________________________________________________________________________
+        if (self.fb_mode == 0): fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        if (self.fb_mode == 1): fbv = self.po.m[self.fbi].pv.copy()
+        if (self.context_dim == 3): self.cv = (self.iv | {(a + self.po.input_dim) for a in self.pv} | {(a + (self.po.input_dim * 2)) for a in fbv})
+        if (self.context_dim == 2): self.cv = (self.iv | {(a + self.po.input_dim) for a in fbv})
+        #____________________________________________________________________________________________________________________________________________
+        avg_v = self.avec.copy()
+        r = max([sum(self.e[a][b] for b in self.cv) for a in self.e.keys()])
+        vi = set()
+        num_samples = 10#----------------------------------------------------------------------------------------------------HP
+        num_attempts = 0
+        num_attempts_max = 100#--------------------------------------------------------------------------------------------HP
+        while ((len(vi) < num_samples) and (r > 0) and (num_attempts < num_attempts_max)):
+            for a in self.e.keys():
+                if ((a not in vi) and (sum(self.e[a][b] for b in self.cv) == r)):
+                    for b in self.cv:
+                        val = self.e[a][b]
+                        conf = self.comp_conf(val)
+                        avg_v[b] += (float(val) * conf)
+                    vi.add(a)
+            r -= 1
+            num_attempts += 1
+        self.bel_v = self.cv.copy()
+        if (len(vi) > 0):
+            norm = float(len(vi))
+            self.bel_v = set()
+            for a in self.cv:
+                val = round(float(avg_v[a]) / norm)
+                if (val > 0): self.bel_v.add(a)
+            self.cv = self.bel_v.copy()
+        #____________________________________________________________________________________________________________________________________________
         self.pv = {a for a in self.e.keys() if (sum(self.e[a][b] for b in self.cv) > 0)}
         if (self.ffi == -1):
             ppc_v = set()
@@ -63,6 +92,7 @@ class Matrix:
             self.po.ds_index = ((self.po.ds_index + len(self.po.ds) + self.beh) % len(self.po.ds))
             self.iv = self.po.ds[self.po.ds_index].copy()
             self.iv |= ppc_v
+            #________________________________________________________________________________________________________________________________________
             # if (self.agency):
             #     rew_delta = 0
             #     for a in ppc_v:
@@ -78,25 +108,25 @@ class Matrix:
             #     self.beh_data = {key:[value[0], value[1], (value[2] - 1)] for key, value in self.beh_data.items() if (value[2] > 0)}
             # if (len(self.beh_data.keys()) > 10):
             #     pass
+            #________________________________________________________________________________________________________________________________________
         else: self.iv = self.po.m[self.ffi].pev.copy()
+        #____________________________________________________________________________________________________________________________________________
         self.pev = (self.iv ^ self.pv)
-        em_den = float(max(1, (len(self.iv) + len(self.pv))))
-        self.em = (float(len(self.pev)) / em_den)
+        em_norm = float(max(1, (len(self.iv) + len(self.pv))))
+        self.em = (float(len(self.pev)) / em_norm)
         failed_pev = (self.iv - self.pv)
+        for a in failed_pev:
+            for b in self.cv:
+                delta = round((1.0 - self.comp_conf(self.e[a][b])) * self.cv_delta_mag)
+                if (delta > 0): self.e[a][b] = min((self.e[a][b] + delta), self.cv_max)
         false_pev = (self.pv - self.iv)
-        for a in self.cv:
-            #--TODO: probabilistic favoring of close matches to enable innovation / creativity
-            for b in failed_pev:
-                conf = self.comp_conf(self.e[b][a])
-                delta = round((1.0 - conf) * self.cv_delta_mag)
-                self.e[b][a] = min((self.e[b][a] + delta), self.cv_max)
-            for b in false_pev:
-                conf = self.comp_conf(self.e[b][a])
-                delta = round((1.0 - conf) * self.cv_delta_mag)
-                self.e[b][a] = max((self.e[b][a] - delta), self.cv_min)
-        if (self.ffi == -1):
-            agency_str = f"\tAG: {self.beh}" if (self.agency) else ""
-            print(f"EM: {(self.em * 100.0):.2f}%" + agency_str)
+        for a in false_pev:
+            for b in self.cv:
+                delta = round((1.0 - self.comp_conf(self.e[a][b])) * self.cv_delta_mag)
+                if (delta > 0): self.e[a][b] = max((self.e[a][b] - delta), self.cv_min)
+        #____________________________________________________________________________________________________________________________________________
+        agency_str = f"\tAG: {self.beh}" if (self.agency) else ""
+        print(f"M{self.mi}:\tEM: {(self.em * 100.0):.2f}%" + agency_str)
     def comp_conf(self, val_in):
         norm = float(self.cv_max - 1)
         if (val_in > 0): return (float(val_in - 1) / norm)
