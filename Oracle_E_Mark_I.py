@@ -4,7 +4,7 @@ class Oracle:
     def __init__(self):
         self.max_int = (sys.maxsize - 1000)
         self.min_int = -(self.max_int - 1)
-        self.H = 6#--------------------------------------------------------------------------------------------------------HP
+        self.H = 3#--------------------------------------------------------------------------------------------------------HP
         self.input_dim = 64#-----------------------------------------------------------------------------------------------HP
         self.ppcL = (self.input_dim - 1)
         self.ppcR = (self.input_dim - 2)
@@ -12,9 +12,9 @@ class Oracle:
         self.ds_range_set.remove(self.ppcL)
         self.ds_range_set.remove(self.ppcR)
         self.ds_index = 0
-        self.ds_card = 16#-------------------------------------------------------------------------------------------------HP
+        self.ds_card = 50#-------------------------------------------------------------------------------------------------HP
         self.ds_dim = 20#--------------------------------------------------------------------------------------------------HP
-        self.ds = [{random.choice(list(self.ds_range_set)) for _ in range(self.ds_card)} for _ in range(self.ds_dim)]
+        self.ds = [set(random.sample(list(self.ds_range_set), self.ds_card)) for _ in range(self.ds_dim)]
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
         while (True):
@@ -35,6 +35,9 @@ class Matrix:
         self.cv_min = -(self.cv_max - 1)
         self.agency = False
         self.beh = 0
+        self.beh_data = dict()
+        self.beh_data_history = 100#----------------------------------------------------------------------------------------------HP
+        self.beh_data_pv = 100#---------------------------------------------------------------------------------------------------HP
         self.em = 0
     def update(self):
         # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
@@ -61,6 +64,21 @@ class Matrix:
             self.iv = self.po.ds[self.po.ds_index].copy()
             self.iv |= ppc_v
             self.pev = (self.iv ^ self.pv)
+            if (self.agency):
+                rew_delta = 0
+                for a in ppc_v:
+                    if (a in self.beh_data.keys()):
+                        self.beh_data[a][0].append(rew_delta)
+                        self.beh_data[a][1].append(self.cv.copy())
+                        self.beh_data[a][2] = self.beh_data_pv
+                        if (len(self.beh_data[a][0]) > self.beh_data_history):
+                            self.beh_data[a][0].pop(0)
+                            self.beh_data[a][1].pop(0)
+                    else:
+                        self.beh_data[a] = [[rew_delta], [self.cv.copy()], self.beh_data_pv]
+                self.beh_data = {key:[value[0], value[1], (value[2] - 1)] for key, value in self.beh_data.items() if (value[2] > 0)}
+            if (len(self.beh_data.keys()) > 10):
+                pass
         else:
             self.iv = self.po.m[self.ffi].pev.copy()
             self.pev = (self.iv ^ self.pv)
