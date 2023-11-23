@@ -95,6 +95,7 @@ def main():
             if self.compute_metrics:
                 m_ind = 0
                 # self.show_text("RE: " + f"{(self.re_rate_avg * 100.0):.2f}" + "%", (200, 200, 200), 10, (self.screen.get_height() - 42))
+                self.show_text(f"String Mismatch: {self.s.sv_mpv_match_val}", (200, 200, 200), 10, (self.display.get_height() - 138))
                 self.show_text(f"Excess A Predictions M{m_ind}: {len(self.m[m_ind].excess_actual_mpv)}", (200, 200, 200), 10, (self.display.get_height() - 126))
                 self.show_text(f"MTO RATE: {(self.m[m_ind].mto_rate * 100.0):.2f}%", (200, 200, 200), 10, (self.display.get_height() - 114))
                 # self.show_text(f"ZERO RATE: {(self.m[m_ind].zero_rate * 100.0):.2f}%", (200, 200, 200), 10, (self.display.get_height() - 114))
@@ -165,7 +166,7 @@ def main():
             self.num_auxiliary_context_symbols = 0#-------------------------------------------------------------------------------HP
             self.auxiliary_context_symbols = [a for a in range(len(self.permitted_chars),
                                                                (len(self.permitted_chars) + self.num_auxiliary_context_symbols))]
-            self.num_char_channels = 5#--------------------------------------------------------------------------------------------HP
+            self.num_char_channels = 5#-5-----------------------------------------------------------------------------------------HP
             self.char_channel_dim = (len(self.permitted_chars) + len(self.auxiliary_context_symbols))
             self.char_channel_set = {a for a in range(self.num_char_channels)}
             self.channels = {a:self.char_channel_dim for a in self.char_channel_set}
@@ -182,7 +183,7 @@ def main():
             # rand_val = random.randint(3, 5)
             # rand_val = 3
             self.lines = self.lines[rand_val:(rand_val + 1)]#-------------------------------------------------------------------HP
-            self.lines[0] = self.lines[0][:400]#--------------------------------------------------------------------------------HP
+            # self.lines[0] = self.lines[0][:400]#--------------------------------------------------------------------------------HP
             # random.shuffle(self.lines)
             print("Line Index: " + str(rand_val) + "  Num Chars Total: " + str(sum(len(a) for a in self.lines)))
             self.line_index = self.char_index = 0
@@ -199,6 +200,7 @@ def main():
             self.interoception_ind_str = "INT " + ('-' * 150)
             self.exteroception_ind_str = "EXT " + ('*' * 150)
             self.ind_str = self.interoception_ind_str if self.enable_interoception else self.exteroception_ind_str
+            self.sv_mpv_match_val = 0
             self.sv_mpv_match = False
         def update(self):
             # sv_decoded_char_list = ['_'] * len(self.channels)
@@ -206,14 +208,14 @@ def main():
             #     chi, chv = divmod(a, self.channel_dim)#-(channel index, channel value)
             #     sv_decoded_char_list[chi] = self.permitted_chars[chv]
             mpv_decoded_char_list = ['_'] * len(self.char_channel_set)
-            mpv_decoded_ppc_list = [0] * len(self.ppc_channel_set)
+            # mpv_decoded_ppc_list = [0] * len(self.ppc_channel_set)
             self.mpv_decoded_cli_set = set()
             for a in self.po.m[0].mpv:
                 cli = (a // self.po.m[0].M)#-----------------cluster index
                 chi = (cli // self.char_channel_dim)#--------------channel index---------------GENERALIZE THIS!!!!
                 chv = (cli % self.char_channel_dim)#----------------channel value--------------GENERALIZE THIS!!!!
                 if chi in self.char_channel_set: mpv_decoded_char_list[chi] = self.permitted_chars[chv]
-                if chi in self.ppc_channel_set: mpv_decoded_ppc_list[(chi - len(self.char_channel_set))] = chv
+                # if chi in self.ppc_channel_set: mpv_decoded_ppc_list[(chi - len(self.char_channel_set))] = chv
                 self.mpv_decoded_cli_set.add(cli)
             t_str = ''.join(mpv_decoded_char_list[-self.char_step:])
             # t_str = "[" + ''.join(sv_decoded_char_list) + " || " + ''.join(mpv_decoded_char_list[-self.char_step:]) + "]"
@@ -221,7 +223,7 @@ def main():
             self.decoded_string_full += t_str
             self.ind_str = self.interoception_ind_str if self.enable_interoception else self.exteroception_ind_str
             if len(self.decoded_string_full) >= 500:
-                # print(self.ind_str + '\n' + "..." + self.decoded_string_full + "...")
+                print(self.ind_str + '\n' + "..." + self.decoded_string_full + "...")
                 self.decoded_string_full = ""
             end = (len(self.curr_line) - len(self.char_channel_set))
             self.num_exposures = ((float(self.exposure_ct) + (float(self.char_index) / float(end))) / float(len(self.lines)))
@@ -259,7 +261,8 @@ def main():
                     pass
                     # val = (self.permitted_chars.index(self.string_segment[ct]) - 2)
                     # temp_sv.add(((key * value) + val))
-            self.sv_mpv_match = (len(temp_sv ^ self.mpv_decoded_cli_set) == 0)
+            self.sv_mpv_match_val = len(temp_sv ^ self.mpv_decoded_cli_set)
+            self.sv_mpv_match = (self.sv_mpv_match_val == 0)
             self.enable_interoception = (self.sv_mpv_match and (self.exposure_ct > 3))
             # self.enable_interoception = False
             # sv_prev = self.sv.copy()
@@ -287,41 +290,38 @@ def main():
             self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
             self.data_channels = dict()
             self.M = 200#-200 - 300------------------------------------------------------------------------------------------------------HP
-            self.rfv_dim = len(self.po.s.channels)#--------------------------------------------------------------------------------------HP
+            self.rfv_dim = (len(self.po.s.channels) * 5)#--------------------------------------------------------------------------------------HP
             self.iv = self.ov = self.mav = self.mpv = self.excess_leaked_mpv = self.excess_actual_mpv = set()
             self.e = e_in.copy()
-            self.adc_max = 1000#-2000 - 5000-----MUST BE GREATER THAN 0!!!!---MUSN'T BE SET TOO LOW!!!!----------------------------------HP
+            self.adc_max = 2000#-2000 - 5000-----MUST BE GREATER THAN 0!!!!---MUSN'T BE SET TOO LOW!!!!----------------------------------HP
             self.adc_min = math.floor(float(self.adc_max) * 0.95)#-0.95------------------------------------------------------------------HP
             self.adc_enabled = (self.adc_min > 0)
+            self.K = (sum(self.po.s.channels.values()) * self.M)
             self.params_per_e = (self.rfv_dim * 2)
-            self.max_possible_parameters = (self.params_per_e * self.M * sum(self.po.s.channels.values()))
+            self.max_possible_parameters = (self.params_per_e * self.K)
             self.em = self.zero_rate = self.mto_rate = 0
-            self.K = (len(self.po.s.channels) * self.M)
         def update(self):
             self.iv = self.po.s.sv if self.ffi == -1 else self.po.m[self.ffi].ov
-            fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
-            # fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
+            # fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
+            fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
+            self.ov = set()
+            fbv_conf_v = dict()
             for a in fbv:
                 cli = (a // self.M)
-                # if (cli in self.iv): self.iv.remove(cli)
-                if (len(fbv & set(range((cli * self.M), ((cli + 1) * self.M)))) == 1):
-                    if (len(self.mpv & set(range((cli * self.M), ((cli + 1) * self.M)))) == 1):
-                        if (cli in self.iv): self.iv.remove(cli)
-                        #this has to be a reciprocal effect
-            ###-run self.iv through an SDM variant to enable innovation and chunking???
+                clv = set(range((cli * self.M), ((cli + 1) * self.M)))
+                if (len(fbv & clv) == 1):
+                    fbv_conf_v[cli] = (self.K + a)
             self.em = self.zero_rate = self.mto_rate = 0
             mav_update = set()
             mpv_ack = set()
-            self.ov = set()
             for a in self.iv:
                 ci = set(range((a * self.M), ((a + 1) * self.M)))
                 new_adc = random.randint(self.adc_min, self.adc_max)
-                pv = (ci & self.mpv & set(self.e.keys()))
-                # pv = (ci & self.mpv)
+                # pv = (ci & self.mpv & set(self.e.keys()))#----this may cause issues and not be ideal???
+                pv = (ci & self.mpv)
                 mpv_ack |= pv
                 if len(pv) == 0:
                     self.em += 1.0
-                    self.ov.add(a)
                     self.zero_rate += 1.0
                     ci_mod = (ci - set(self.e.keys()))
                     while (len(ci_mod) < 1):#-------------------------------------------------------------------------------------------HP
@@ -335,17 +335,25 @@ def main():
                                     ci_mod = (ci - set(self.e.keys()))
                             else: break
                     wi = random.choice(list(ci_mod))
-                    self.e[wi] = {b:new_adc for b in self.mav}
+                    tv = self.mav.copy()
+                    if (a in fbv_conf_v.keys()):
+                        tv.add(fbv_conf_v[a])
+                        mav_update.add(fbv_conf_v[a])
+                        self.ov.add(a)
+                    self.e[wi] = {b:new_adc for b in tv}
                 else:
                     wi = random.choice(list(pv))
+                    tv = self.mav.copy()
                     if len(pv) > 1:#---------I'M HOPING THIS CAN ALWAYS BE IMPOSSIBLE HERE AND DEALT WITH DURING GENERATION OF self.mpv !!!
                         ##############--------I think I should ideally create a 3rd context which wins out if 2 tie in activation?????
-                        print("MTO @ " + str(self.po.cycle))
+                        # print("MTO @ " + str(self.po.cycle))
                         self.em += (float(len(pv) - 1) / float(self.M - 1))
-                        self.ov.add(a)
                         self.mto_rate += 1.0
-                        if wi in self.e: new_adc = max(self.e[wi].values())
-                    for b in self.mav: self.e[wi][b] = new_adc
+                        if (a in fbv_conf_v.keys()):
+                            tv.add(fbv_conf_v[a])
+                            mav_update.add(fbv_conf_v[a])
+                            self.ov.add(a)
+                    for b in tv: self.e[wi][b] = new_adc
                 mav_update.add(wi)
             norm = float(max(1, len(self.iv)))
             self.em /= norm
@@ -353,74 +361,47 @@ def main():
             self.mto_rate /= norm
             self.mav = mav_update.copy()
             self.excess_leaked_mpv = (self.mpv - mpv_ack)###----I need to use this to drive beh/att shifts?; should perhaps be the encoding for that??
-            excess_cli = {(a // self.M) for a in self.excess_leaked_mpv}
-            self.ov |= excess_cli
+            for a in self.excess_leaked_mpv:
+                cli = (a // self.M)
+                if (cli in fbv_conf_v.keys()):
+                    self.e[a][fbv_conf_v[cli]] = random.randint(self.adc_min, self.adc_max)
+                    self.mav.add(fbv_conf_v[cli])
+                    self.ov.add(cli)
             if self.adc_enabled:
                 for b in self.e.keys():
                     if (len(self.e[b].keys()) > self.rfv_dim):
                         self.e[b] = {key:(value - 1) for key, value in self.e[b].items() if (value > 0)}
                 self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
             if len(self.e) > 0:
-                #-adjust self.mav for creativity here...
-                rv = min(len(set(value.keys()) ^ self.mav) for value in self.e.values())
-                rv_max = (len(self.mav) * 5)#----------------------------------------------------------------------------------------------------HP
-                # rv_max = (len(self.mav) * 3)#----------------------------------------------------------------------------------------------------HP
-                #------------------------the larger rv_max, the slower and more creative the output
                 self.mpv = set()
+                rv = min(len(set(value.keys()) ^ self.mav) for value in self.e.values())
                 skip_indices = set()
-                if self.fbi != -1: skip_indices = self.po.m[self.fbi].mpv.copy()
                 cli_filled = set()
                 chi_filled = set()
                 self.excess_actual_mpv = set()
-                # num_to_set_predictive = self.rfv_dim#---------------------------------------------------------------------------------------------HP
-                # while ((len(self.mpv) < num_to_set_predictive) and (len(skip_indices) < len(self.e)) and (rv < rv_max)):
-                while ((len(skip_indices) < len(self.e)) and (rv < rv_max)):
+                num_to_set_predictive = len(self.po.s.channels)#------------------------------------------------------------------------------------HP
+                while ((len(self.mpv) < num_to_set_predictive) and (len(skip_indices) < len(self.e))):
                 # while (len(skip_indices) < len(self.e)):
                     new_set = {key for key, value in self.e.items()
                             if ((len(set(value.keys()) ^ self.mav) == rv) and (key not in skip_indices))}
-                    # while ((len(self.mpv) < num_to_set_predictive) and (len(new_set) > 0)):
-                    while (len(new_set) > 0):
+                    while ((len(self.mpv) < num_to_set_predictive) and (len(new_set) > 0)):
+                    # while (len(new_set) > 0):
                         ri = random.choice(list(new_set))
                         new_set.remove(ri)
                         cli = (ri // self.M)
                         chi = (cli // self.po.s.char_channel_dim)#-----------------------------------------GENERALIZE THIS!!!!
-                        if ((cli in cli_filled) or (chi in chi_filled)): self.excess_actual_mpv.add(ri)
+                        if ((cli in cli_filled) or (chi in chi_filled)):
+                            if (cli in fbv_conf_v.keys()):
+                                self.e[ri][fbv_conf_v[cli]] = random.randint(self.adc_min, self.adc_max)
+                                self.ov.add(cli)
+                            self.excess_actual_mpv.add(ri)
                         if ((cli not in cli_filled) and (chi not in chi_filled)):
                             self.mpv.add(ri)
                             cli_filled.add(cli)
                             chi_filled.add(chi)
+                            # skip_indices.add(ri)
                         skip_indices.add(ri)
                     rv += 1
-            # excess_cli = {(a // self.M) for a in self.excess_actual_mpv}
-            # self.ov |= excess_cli
-        def process_creativity(self, v_in):
-            Av = set()
-            Bv = v_in.copy()
-            # while (len(Av ^ Bv) > 0):
-            #     avg_v = self.avec.copy()
-            #     r = max([sum(self.e[a][b] for b in Bv) for a in self.e.keys()])
-            #     vi = set()
-            #     num_samples = 10#---------------------------------------------------------------------------------------------------------HP
-            #     num_attempts = 0
-            #     num_attempts_max = 100#-if this is too low, it will struggle to converge--------------------------------------------------HP
-            #     while ((r > 0) and (len(vi) < num_samples) and (num_attempts < num_attempts_max)):
-            #         for a in self.e.keys():
-            #             if ((a not in vi) and (sum(self.e[a][b] for b in Bv) == r)):
-            #                 for b in Bv: avg_v[b] += (float(self.e[a][b]) * self.comp_conf(self.e[a][b]))
-            #                 vi.add(a)
-            #         r -= 1
-            #         num_attempts += 1
-            #     Av = Bv.copy()
-            #     if (len(vi) > 0):
-            #         tv = set()
-            #         for a in Bv:
-            #             val = round(float(avg_v[a]) / float(len(vi)))
-            #             if (val > 0): tv.add(a)
-            #         Bv = tv.copy()
-            # diff = len(v_in ^ Bv)
-            # print(diff)
-            # # if (diff > 0): print(diff)
-            return Bv.copy()
         def register_data_channel(self, label_in, dict_in):
             if label_in not in self.data_channels:
                 collision = False
