@@ -167,7 +167,7 @@ def main():
             self.num_auxiliary_context_symbols = 0#-------------------------------------------------------------------------------HP
             self.auxiliary_context_symbols = [a for a in range(len(self.permitted_chars),
                                                                (len(self.permitted_chars) + self.num_auxiliary_context_symbols))]
-            self.num_char_channels = 7#-5-----------------------------------------------------------------------------------------HP
+            self.num_char_channels = 8#-5-----------------------------------------------------------------------------------------HP
             self.char_channel_dim = (len(self.permitted_chars) + len(self.auxiliary_context_symbols))
             self.char_channel_set = {a for a in range(self.num_char_channels)}
             self.channels = {a:self.char_channel_dim for a in self.char_channel_set}
@@ -180,9 +180,9 @@ def main():
             #_________________________________________________________EXTERNAL DATA__________________________________________________
             file_path = "Conversational Dataset Bing Compose/Conversational_Dataset_Bing_Compose_V1.txt"
             self.lines = self.load_lines_from_file(file_path)
-            rand_val = random.randint(0, 2)
+            # rand_val = random.randint(0, 2)
             # rand_val = random.randint(3, 5)
-            # rand_val = 3
+            rand_val = 2
             self.lines = self.lines[rand_val:(rand_val + 1)]#-------------------------------------------------------------------HP
             # self.lines[0] = self.lines[0][:400]#--------------------------------------------------------------------------------HP
             # random.shuffle(self.lines)
@@ -290,7 +290,7 @@ def main():
             self.ffi = (mi_in - 1)
             self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
             self.data_channels = dict()
-            self.M = 200#-200 - 300------------------------------------------------------------------------------------------------------HP
+            self.M = 200#-200 - 300-the fewer the channels, the larger this value must be!!!------------------------------------------------HP
             self.rfv_dim = (len(self.po.s.channels) * 2)#--------------------------------------------------------------------------------------HP
             self.iv = self.ov = self.mav = self.mpv = self.excess_leaked_mpv = self.excess_actual_mpv = set()
             self.e = e_in.copy()
@@ -310,7 +310,7 @@ def main():
             for a in fbv:
                 cli = (a // self.M)
                 clv = set(range((cli * self.M), ((cli + 1) * self.M)))
-                if (len(fbv & clv) == 1): fbv_conf_v[cli] = ((self.K * 5) + a)
+                if (len(fbv & clv) == 1): fbv_conf_v[cli] = (self.K + a)
             self.em = self.zero_rate = self.mto_rate = 0
             mav_update = set()
             mpv_ack = set()
@@ -372,7 +372,8 @@ def main():
                 # self.ov.add(cli)
             if self.adc_enabled:
                 for b in self.e.keys():
-                    if (len(self.e[b].keys()) > self.rfv_dim):
+                    # if (len(self.e[b].keys()) > self.rfv_dim):
+                    while (len(self.e[b].keys()) > self.rfv_dim):
                         self.e[b] = {key:(value - 1) for key, value in self.e[b].items() if (value > 0)}
                 self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
             self.tp = (sum((len(value.keys()) * 2) for value in self.e.values()) + len(self.e.keys()))
