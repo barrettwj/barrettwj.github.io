@@ -100,7 +100,8 @@ def main():
                 self.show_text(f"MTO RATE: {(self.m[m_ind].mto_rate * 100.0):.2f}%", (200, 200, 200), 10, (self.display.get_height() - 114))
                 # self.show_text(f"ZERO RATE: {(self.m[m_ind].zero_rate * 100.0):.2f}%", (200, 200, 200), 10, (self.display.get_height() - 114))
                 self.show_text("Max Poss. Params: " + str(self.m[m_ind].max_possible_parameters), (200, 200, 200), 10, (self.display.get_height() - 102))
-                valA = (len(self.m[m_ind].e) * self.m[m_ind].params_per_e)
+                # valA = (len(self.m[m_ind].e) * self.m[m_ind].params_per_e)
+                valA = self.m[m_ind].tp
                 valB = ((float(valA) / float(self.m[m_ind].max_possible_parameters)) * 100.0)
                 valC = ((float(valA) / float(175E9)) * 100.0)
                 stri = f"{valA}\t{valB:.2f}%\t{valC:.6f}%"
@@ -166,7 +167,7 @@ def main():
             self.num_auxiliary_context_symbols = 0#-------------------------------------------------------------------------------HP
             self.auxiliary_context_symbols = [a for a in range(len(self.permitted_chars),
                                                                (len(self.permitted_chars) + self.num_auxiliary_context_symbols))]
-            self.num_char_channels = 5#-5-----------------------------------------------------------------------------------------HP
+            self.num_char_channels = 7#-5-----------------------------------------------------------------------------------------HP
             self.char_channel_dim = (len(self.permitted_chars) + len(self.auxiliary_context_symbols))
             self.char_channel_set = {a for a in range(self.num_char_channels)}
             self.channels = {a:self.char_channel_dim for a in self.char_channel_set}
@@ -290,16 +291,16 @@ def main():
             self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
             self.data_channels = dict()
             self.M = 200#-200 - 300------------------------------------------------------------------------------------------------------HP
-            self.rfv_dim = (len(self.po.s.channels) * 5)#--------------------------------------------------------------------------------------HP
+            self.rfv_dim = (len(self.po.s.channels) * 2)#--------------------------------------------------------------------------------------HP
             self.iv = self.ov = self.mav = self.mpv = self.excess_leaked_mpv = self.excess_actual_mpv = set()
             self.e = e_in.copy()
             self.adc_max = 2000#-2000 - 5000-----MUST BE GREATER THAN 0!!!!---MUSN'T BE SET TOO LOW!!!!----------------------------------HP
             self.adc_min = math.floor(float(self.adc_max) * 0.95)#-0.95------------------------------------------------------------------HP
             self.adc_enabled = (self.adc_min > 0)
             self.K = (sum(self.po.s.channels.values()) * self.M)
-            self.params_per_e = (self.rfv_dim * 2)
+            self.params_per_e = ((self.rfv_dim * 2) + 1)
             self.max_possible_parameters = (self.params_per_e * self.K)
-            self.em = self.zero_rate = self.mto_rate = 0
+            self.em = self.zero_rate = self.mto_rate = self.tp = 0
         def update(self):
             self.iv = self.po.s.sv if self.ffi == -1 else self.po.m[self.ffi].ov
             # fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
@@ -309,8 +310,7 @@ def main():
             for a in fbv:
                 cli = (a // self.M)
                 clv = set(range((cli * self.M), ((cli + 1) * self.M)))
-                if (len(fbv & clv) == 1):
-                    fbv_conf_v[cli] = (self.K + a)
+                if (len(fbv & clv) == 1): fbv_conf_v[cli] = ((self.K * 5) + a)
             self.em = self.zero_rate = self.mto_rate = 0
             mav_update = set()
             mpv_ack = set()
@@ -323,6 +323,7 @@ def main():
                 if len(pv) == 0:
                     self.em += 1.0
                     self.zero_rate += 1.0
+                    # self.ov.add(a)
                     ci_mod = (ci - set(self.e.keys()))
                     while (len(ci_mod) < 1):#-------------------------------------------------------------------------------------------HP
                         keys_copy = list(set(self.e.keys()) & ci)
@@ -349,6 +350,7 @@ def main():
                         # print("MTO @ " + str(self.po.cycle))
                         self.em += (float(len(pv) - 1) / float(self.M - 1))
                         self.mto_rate += 1.0
+                        # self.ov.add(a)
                         if (a in fbv_conf_v.keys()):
                             tv.add(fbv_conf_v[a])
                             mav_update.add(fbv_conf_v[a])
@@ -367,11 +369,13 @@ def main():
                     self.e[a][fbv_conf_v[cli]] = random.randint(self.adc_min, self.adc_max)
                     self.mav.add(fbv_conf_v[cli])
                     self.ov.add(cli)
+                # self.ov.add(cli)
             if self.adc_enabled:
                 for b in self.e.keys():
                     if (len(self.e[b].keys()) > self.rfv_dim):
                         self.e[b] = {key:(value - 1) for key, value in self.e[b].items() if (value > 0)}
                 self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
+            self.tp = (sum((len(value.keys()) * 2) for value in self.e.values()) + len(self.e.keys()))
             if len(self.e) > 0:
                 self.mpv = set()
                 rv = min(len(set(value.keys()) ^ self.mav) for value in self.e.values())
@@ -394,6 +398,7 @@ def main():
                             if (cli in fbv_conf_v.keys()):
                                 self.e[ri][fbv_conf_v[cli]] = random.randint(self.adc_min, self.adc_max)
                                 self.ov.add(cli)
+                            # self.ov.add(cli)
                             self.excess_actual_mpv.add(ri)
                         if ((cli not in cli_filled) and (chi not in chi_filled)):
                             self.mpv.add(ri)
