@@ -50,27 +50,25 @@ class Matrix:
         if (self.context_dim == 2): cv = (self.iv | {(a + self.po.m_dim) for a in fbv})
         #____________________________________________________________________________________________________________________________________________
         self.Bv = cv.copy()
+        first = True
         while (len(self.Av ^ self.Bv) > 0):
             avg_v = self.avec.copy()
             r_init = max([sum(self.e[a][b] for b in self.Bv) for a in self.e.keys()])
             r = r_init
             vi = set()
-            num_samples = 10#---------------------------------------------------------------------------------------------------------HP
+            num_samples = 3#---------------------------------------------------------------------------------------------------------HP
             num_attempts = 0
             num_attempts_max = 100#-if this is too low, it will struggle to converge--------------------------------------------------HP
             while ((r > 0) and (len(vi) < num_samples) and (num_attempts < num_attempts_max)):
                 for a in self.e.keys():
                     if ((a not in vi) and (sum(self.e[a][b] for b in self.Bv) == r)):
-                        # for b in self.Bv: avg_v[b] += (float(self.e[a][b]) / (2.0 ** float(r_init - r)))
-                        for i, b in enumerate(avg_v): avg_v[i] += (float(self.e[a][i]) / (2.0 ** float(r_init - r)))
-                        # for b in self.Bv: avg_v[b] += self.e[a][b]
+                        for b in self.Bv: avg_v[b] += (float(self.e[a][b]) / (2.0 ** float(r_init - r)))
+                        # for b in self.Bv: avg_v[b] += float(self.e[a][b])
                         vi.add(a)
                 r -= 1
                 num_attempts += 1
             self.Av = self.Bv.copy()
-            # if (len(vi) > 0): self.Bv = {a for a in self.Bv if (round(avg_v[a]) > 0)}
-            if (len(vi) > 0): self.Bv = {i for i, a in enumerate(avg_v) if (round(a) > 0)}
-            # if (len(vi) > 0): self.Bv = {a for a in self.Bv if (avg_v[a] > 0)}
+            if (len(vi) > 0): self.Bv = {a for a in self.Bv if (round(float(avg_v[a]) / float(len(vi))) > 0)}
         diff = len(cv ^ self.Bv)
         cv = self.Bv.copy()
         #____________________________________________________________________________________________________________________________________________
