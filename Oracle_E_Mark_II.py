@@ -5,7 +5,9 @@ class Oracle:
         self.max_int = (sys.maxsize - 1000)
         self.min_int = -(self.max_int - 1)
         self.H = 3#---------------------------------------------------------------------------------------------------------------HP
-        self.m_dim = 64#------------------------------------------------------------------------------------------------------HP
+        self.m_dim = 128#---------------------------------------------------------------------------------------------------------HP
+        self.emp_target_min = 0.05#-----------------------------------------------------------------------------------------------HP
+        self.emp_target_max = 0.95#-----------------------------------------------------------------------------------------------HP
         self.ppcL = (self.m_dim - 1)
         self.ppcR = (self.m_dim - 2)
         self.ds_range_set = {a for a in range(self.m_dim)}
@@ -26,9 +28,9 @@ class Matrix:
         self.mi = mi_in
         self.ffi = (mi_in - 1)
         self.fbi = ((mi_in + 1) % self.po.H)
-        self.fb_mode = 0#---------------------------------------------------------------------------------------------------------HP
+        self.fb_mode = 1#---------------------------------------------------------------------------------------------------------HP
         self.context_dim = 3#-----------------------------------------------------------------------------------------------------HP
-        self.iv = self.pv = self.pev = self.Av = self.Bv = set()
+        self.iv = self.pv = self.pev = self.Av = self.Bv = self.ppc_v = set()
         self.avec = ([0] * self.po.m_dim * self.context_dim)
         self.e = {a:self.avec.copy() for a in range(self.po.m_dim)}
         max_cv = (self.po.max_int // len(self.avec))
@@ -38,7 +40,8 @@ class Matrix:
         self.cv_min = -(self.cv_max - 1)
         self.conf_norm = float(self.cv_max - 1)
         self.agency = False
-        self.beh = self.em = 0
+        self.beh = self.em = self.em_prev = self.em_delta = 0
+        self.emp_target = self.po.emp_target_min
         self.beh_data = dict()
         self.beh_data_history = 100#----------------------------------------------------------------------------------------------HP
         self.beh_data_pv = 100#---------------------------------------------------------------------------------------------------HP
@@ -50,7 +53,6 @@ class Matrix:
         if (self.context_dim == 2): cv = (self.iv | {(a + self.po.m_dim) for a in fbv})
         #____________________________________________________________________________________________________________________________________________
         self.Bv = cv.copy()
-        first = True
         while (len(self.Av ^ self.Bv) > 0):
             avg_v = self.avec.copy()
             r_init = max([sum(self.e[a][b] for b in self.Bv) for a in self.e.keys()])
@@ -58,12 +60,12 @@ class Matrix:
             vi = set()
             num_samples = 3#---------------------------------------------------------------------------------------------------------HP
             num_attempts = 0
-            num_attempts_max = 100#-if this is too low, it will struggle to converge--------------------------------------------------HP
+            num_attempts_max = 100#-if this is too low, it will struggle to converge-------------------------------------------------HP
             while ((r > 0) and (len(vi) < num_samples) and (num_attempts < num_attempts_max)):
                 for a in self.e.keys():
-                    if ((a not in vi) and (sum(self.e[a][b] for b in self.Bv) == r)):
-                        for b in self.Bv: avg_v[b] += (float(self.e[a][b]) / (2.0 ** float(r_init - r)))
-                        # for b in self.Bv: avg_v[b] += float(self.e[a][b])
+                    if ((len(vi) < num_samples) and (a not in vi) and (sum(self.e[a][b] for b in self.Bv) == r)):
+                        # for b in self.Bv: avg_v[b] += (float(self.e[a][b]) / (2.0 ** float(r_init - r)))
+                        for b in self.Bv: avg_v[b] += self.e[a][b]
                         vi.add(a)
                 r -= 1
                 num_attempts += 1
@@ -78,34 +80,22 @@ class Matrix:
             if ((self.po.ppcL in self.pv) and (self.po.ppcR not in self.pv)): self.beh += -1
             if ((self.po.ppcR in self.pv) and (self.po.ppcL not in self.pv)): self.beh += 1
             self.agency = (self.beh != 0)
-            if ((not self.agency) and (random.randrange(1000000) < 100000)): self.beh = random.choice([-1, 1])
-            ppc_v = set()
-            if (self.beh == -1): ppc_v.add(self.po.ppcL)
-            if (self.beh == 1): ppc_v.add(self.po.ppcR)
+            if ((not self.agency) and (self.em_delta == 0) and (random.randrange(1000000) < 100000)): self.beh = random.choice([-1, 1])
+            self.ppc_v = set()
+            if (self.beh == -1): self.ppc_v.add(self.po.ppcL)
+            if (self.beh == 1): self.ppc_v.add(self.po.ppcR)
             self.po.ds_index = ((self.po.ds_index + len(self.po.ds) + self.beh) % len(self.po.ds))
             self.iv = self.po.ds[self.po.ds_index].copy()
-            self.iv |= ppc_v
-            #________________________________________________________________________________________________________________________________________
-            # if (self.agency):
-            #     rew_delta = 0
-            #     for a in ppc_v:
-            #         if (a in self.beh_data.keys()):
-            #             self.beh_data[a][0].append(rew_delta)
-            #             self.beh_data[a][1].append(cv.copy())
-            #             self.beh_data[a][2] = self.beh_data_pv
-            #             if (len(self.beh_data[a][0]) > self.beh_data_history):
-            #                 self.beh_data[a][0].pop(0)
-            #                 self.beh_data[a][1].pop(0)
-            #         else:
-            #             self.beh_data[a] = [[rew_delta], [cv.copy()], self.beh_data_pv]
-            #     self.beh_data = {key:[value[0], value[1], (value[2] - 1)] for key, value in self.beh_data.items() if (value[2] > 0)}
-            # if (len(self.beh_data.keys()) > 10):
-            #     pass
-            #________________________________________________________________________________________________________________________________________
+            self.iv |= self.ppc_v
         else: self.iv = self.po.m[self.ffi].pev.copy()
         #____________________________________________________________________________________________________________________________________________
         self.pev = (self.iv ^ self.pv)
+        if ((self.emp_target == self.po.emp_target_min) and (self.em <= self.po.emp_target_min)): self.emp_target = self.po.emp_target_max
+        if ((self.emp_target == self.po.emp_target_max) and (self.em >= self.po.emp_target_max)): self.emp_target = self.po.emp_target_min
+        self.em_prev = self.em
         self.em = (float(len(self.pev)) / float(max(1, (len(self.iv) + len(self.pv)))))
+        self.em_delta = (self.em - self.em_prev)
+        #____________________________________________________________________________________________________________________________________________
         failed_pev = (self.iv - self.pv)
         for a in failed_pev:
             for b in cv:
@@ -116,6 +106,27 @@ class Matrix:
             for b in cv:
                 delta = round((1.0 - self.comp_conf(self.e[a][b])) * self.cv_delta_mag)
                 if (delta > 0): self.e[a][b] = max((self.e[a][b] - delta), self.cv_min)
+        #___________________________________________________________________________________________________________________________________________
+        if (self.agency and (len(self.ppc_v) > 0)):
+        # if (len(self.ppc_v) > 0):
+            if (((self.em_delta > 0) and (self.em < self.emp_target)) or ((self.em_delta < 0) and (self.em > self.emp_target))):
+                if (self.po.ppcL in self.ppc_v):
+                    for b in cv:
+                        delta = round((1.0 - self.comp_conf(self.e[self.po.ppcL][b])) * self.cv_delta_mag)
+                        if (delta > 0): self.e[self.po.ppcL][b] = min((self.e[self.po.ppcL][b] + delta), self.cv_max)
+                if (self.po.ppcR in self.ppc_v):
+                    for b in cv:
+                        delta = round((1.0 - self.comp_conf(self.e[self.po.ppcR][b])) * self.cv_delta_mag)
+                        if (delta > 0): self.e[self.po.ppcR][b] = min((self.e[self.po.ppcR][b] + delta), self.cv_max)
+            if (((self.em_delta <= 0) and (self.em < self.emp_target)) or ((self.em_delta >= 0) and (self.em > self.emp_target))):
+                if (self.po.ppcL in self.ppc_v):
+                    for b in cv:
+                        delta = round((1.0 - self.comp_conf(self.e[self.po.ppcL][b])) * self.cv_delta_mag)
+                        if (delta > 0): self.e[self.po.ppcL][b] = max((self.e[self.po.ppcL][b] - delta), self.cv_min)
+                if (self.po.ppcR in self.ppc_v):
+                    for b in cv:
+                        delta = round((1.0 - self.comp_conf(self.e[self.po.ppcR][b])) * self.cv_delta_mag)
+                        if (delta > 0): self.e[self.po.ppcR][b] = max((self.e[self.po.ppcR][b] - delta), self.cv_min)
         #____________________________________________________________________________________________________________________________________________
         agency_str = f"\tAG: {self.beh}" if (self.agency) else ""
         mb_str = f"\tMB: {self.beh}" if ((self.beh != 0) and (not self.agency)) else ""
