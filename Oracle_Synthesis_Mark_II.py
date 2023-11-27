@@ -288,21 +288,21 @@ def main():
             self.ffi = (mi_in - 1)
             self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
             self.data_channels = dict()
-            self.M = 200#-200 - 300------------------------------------------------------------------------------------------------------HP
-            self.rfv_dim = (len(self.po.s.channels) * 2)#--------------------------------------------------------------------------------------HP
+            self.M = 49#-200 - 300------------------------------------------------------------------------------------------------------HP
+            self.rfv_dim = (len(self.po.s.channels) * 2)#-------------------------------------------------------------------------------HP
+            self.mem_max = 3000#--------------------------------------------------------------------------------------------------------HP
             self.iv = self.ov = self.mav = self.mpv = self.excess_leaked_mpv = set()
             self.e = e_in.copy()
-            self.adc_max = 49#-2000 - 5000-----MUST BE GREATER THAN 0!!!!---MUSN'T BE SET TOO LOW!!!!----------------------------------HP
-            self.adc_min = math.floor(float(self.adc_max) * 0.95)#-0.95------------------------------------------------------------------HP
-            self.adc_enabled = (self.adc_min > 0)
+            self.adc_max = 10#-2000 - 5000----------------------------------------------------------------------------------------------HP
+            self.adc_min = math.floor(float(self.adc_max) * 0.95)#-0.95-----------------------------------------------------------------HP
             self.params_per_e = (self.rfv_dim * 2)
             self.max_possible_parameters = (self.params_per_e * self.M * sum(self.po.s.channels.values()))
             self.em = self.zero_rate = self.mto_rate = 0
             self.K = (sum(value for value in self.po.s.channels.values()) * self.M)
         def update(self):
             self.iv = self.po.s.sv if self.ffi == -1 else self.po.m[self.ffi].ov
-            # fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
-            fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
+            fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
+            # fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
             self.ov = set()
             fbv_conf_v = dict()
             for a in fbv:
@@ -315,10 +315,10 @@ def main():
             for a in self.iv:
                 ci = set(range((a * self.M), ((a + 1) * self.M)))
                 new_adc = random.randint(self.adc_min, self.adc_max)
-                # pv = (ci & self.mpv & set(self.e.keys()))
                 pv = (ci & self.mpv)
                 mpv_ack |= pv
                 if len(pv) == 0:
+                    self.ov.add(a)
                     self.em += 1.0
                     self.zero_rate += 1.0
                     ci_mod = (ci - set(self.e.keys()))
@@ -334,19 +334,16 @@ def main():
                             else: break
                     wi = random.choice(list(ci_mod))
                     tv = self.mav.copy()
-                    if (a in fbv_conf_v.keys()):
-                        tv.add(fbv_conf_v[a])
-                        self.ov.add(a)
+                    if (a in fbv_conf_v.keys()): tv.add(fbv_conf_v[a])
                     self.e[wi] = {b:new_adc for b in tv}
                 else:
                     wi = random.choice(list(pv))
                     tv = self.mav.copy()
                     if len(pv) > 1:
+                        self.ov.add(a)
                         self.em += (float(len(pv) - 1) / float(self.M - 1))
                         self.mto_rate += 1.0
-                        if (a in fbv_conf_v.keys()):
-                            tv.add(fbv_conf_v[a])
-                            self.ov.add(a)
+                        if (a in fbv_conf_v.keys()): tv.add(fbv_conf_v[a])
                     for b in tv: self.e[wi][b] = new_adc
                 mav_update.add(wi)
             norm = float(max(1, len(self.iv)))
@@ -354,20 +351,26 @@ def main():
             self.zero_rate /= norm
             self.mto_rate /= norm
             self.mav = mav_update.copy()
-            self.excess_leaked_mpv = (self.mpv - mpv_ack)###----I need to use this to drive beh/att shifts?; should perhaps be the encoding for that??
+            self.excess_leaked_mpv = (self.mpv - mpv_ack)###-I need to use this to drive beh/att shifts?; should perhaps be the encoding for that??
             for a in self.excess_leaked_mpv:
                 cli = (a // self.M)
-                if (cli in fbv_conf_v.keys()):
-                    self.e[a][fbv_conf_v[cli]] = random.randint(self.adc_min, self.adc_max)
-                    self.ov.add(cli)
-            if self.adc_enabled:
-                for b in self.e.keys():
-                    if (len(self.e[b].keys()) > self.rfv_dim):
-                        self.e[b] = {key:(value - 1) for key, value in self.e[b].items() if (value > 0)}
-                self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
+                if (cli in fbv_conf_v.keys()): self.e[a][fbv_conf_v[cli]] = random.randint(self.adc_min, self.adc_max)
+                self.ov.add(cli)
+            for a in self.e.keys():
+                if (len(self.e[a].keys()) > self.rfv_dim): self.e[a] = {key:(value - 1) for key, value in self.e[a].items() if (value > 0)}
+                # while (len(self.e[a].keys()) > self.rfv_dim): self.e[a] = {key:(value - 1) for key, value in self.e[a].items() if (value > 0)}
+            # self.e = {key:value for key, value in self.e.items() if (len(value) > 0)}
+            while (len(self.e.keys()) > self.mem_max):
+                tl = list(self.e.keys())
+                random.shuffle(tl)
+                for a in tl:
+                    self.e[a] = {key:(value - 1) for key, value in self.e[a].items() if (value > 0)}
+                    if (len(self.e[a].keys()) == 0):
+                        del self.e[a]
+                        break
             if len(self.e) > 0:
                 self.mpv = set()
-                # self.mav = self.process_creativity(self.mav)
+                # self.mav = self.process_innovation(self.mav)
                 rv = min(len(set(value.keys()) ^ self.mav) for value in self.e.values())
                 rv_max = (rv + 10)#------------------------------------------------------------------------------------------------------------------HP
                 #------------------------the larger rv_max, the slower and more creative the output
@@ -378,7 +381,8 @@ def main():
                     random.shuffle(new_set)
                     while ((len(self.mpv) < num_set_pred) and (len(new_set) > 0)): self.mpv.add(new_set.pop())
                     rv += 1
-        def process_creativity(self, v_in):
+            # if ((self.ffi == 0) and (len(self.e.keys()) > 0)): print(f"{len(self.e.keys())}")
+        def process_innovation(self, v_in):
             Av = set()
             Bv = v_in.copy()
             diff_max = 0
