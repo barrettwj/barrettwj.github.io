@@ -15,7 +15,8 @@ class Oracle:
                 a.update()
                 self.em_global += a.em
             self.em_global /= float(len(self.m))
-            print(f"EM: {(self.em_global * 100.0):.2f}%\tIDX: {self.s.ts_idx}")
+            print(f"EM: {(self.em_global * 100.0):.2f}%\tIDX: {self.s.ts_idx}\tZR: {self.m[0].zero_rate}" +
+                  f"\tMR: {self.m[0].mto_rate}\tEX: {len(self.m[0].excess_leaked_mpv)}")
 class Sensorium:
     def __init__(self, po_in):
         self.po = po_in
@@ -44,7 +45,7 @@ class Sensorium:
         self.unavail_idxs |= self.eff_ch_A_v
         self.sv = self.fbv = set()
         ts_dim = (self.aff_ch_A_dim - 20)#-----------------------------------------------------------------------------------------HP
-        ts_len = 11#----------------------------------------------------------------------------------------------------------------HP
+        ts_len = 9#----------------------------------------------------------------------------------------------------------------HP
         self.ts = [set(random.sample(list(self.aff_ch_A_v), ts_dim)) for _ in range(ts_len)]
         self.ts_idx = self.mval = 0
         self.beh_mag = (ts_len - 1 - 3)#---------------------------------------------------------------------------------------------HP
@@ -61,37 +62,42 @@ class Sensorium:
         heap = [(len(k ^ self.fbv), random.randrange(100), k.copy()) for k in self.beh_map.keys()]
         heapq.heapify(heap)
         idx_delta = self.beh_map[heapq.heappop(heap)[2]]
-        self.ts_idx = ((self.ts_idx + len(self.ts) + idx_delta) % len(self.ts))
-        # self.ts_idx = ((self.ts_idx + len(self.ts) + 1) % len(self.ts))
+        # self.ts_idx = ((self.ts_idx + len(self.ts) + idx_delta) % len(self.ts))
+        self.ts_idx = ((self.ts_idx + len(self.ts) + 1) % len(self.ts))
         self.sv = self.ts[self.ts_idx].copy()
         min_val = min(abs(em_val - v) for v in self.em_aff_values.values())
         cands = [k for k, v in self.em_aff_values.items() if abs(em_val - v) == min_val]
         em_v = random.choice(cands).copy()
         if frozenset(self.fbv) not in self.beh_map.keys(): self.beh_map[frozenset(self.fbv.copy())] = idx_delta
-        self.sv |= em_v
+        # self.sv |= em_v
         self.sv |= self.fbv
 class Matrix:
     def __init__(self, po_in, mi_in):
         self.po = po_in
         self.ffi = (mi_in - 1)
         self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
-        self.M = 49#-200 - 300------------------------------------------------------------------------------------------------------HP
-        self.ov = self.mav = self.mav_prev = self.mpv = self.mpv_prev = set()
+        self.M = 49#-------------------------------------------------------------------------------------------------------------HP
+        self.ov = self.mav = self.mav_prev = self.mpv = self.mpv_prev = self.excess_leaked_mpv = set()
         self.e = dict()
-        self.adc_max = 50#-300 - 2000 - 5000---------------------------------------------------------------------------------------HP
-        self.adc_min = round(float(self.adc_max - 1) * 0.75)#-0.95------------------------------------------------------------------HP
+        self.adc_max = 500#-300------------------------------------------------------------------------------------------------------HP
+        self.adc_min = round(float(self.adc_max - 1) * 0.95)#-0.95------------------------------------------------------------------HP
         self.em = self.em_prev = self.em_delta = self.zero_rate = self.mto_rate = 0
         self.em_sp = 0.10#---------------------------------------------------------------------------------------------------------HP
     def update(self):
-            self.em_delta = (self.em - self.em_prev)
-            self.em_prev = self.em
+            # self.em_delta = (self.em - self.em_prev)
+            # self.em_prev = self.em
             ###################################################################
-            conn_delta = round(abs(self.em_delta) * abs(self.em - self.em_sp))
+            sc = 100.0#------------------------------------------------------------------------------------------------------------HP
+            conn_delta = round(abs((self.em - self.em_sp) * sc))
+            # print(conn_delta)
+            """
             if conn_delta > 0:
-                rel_set = set()
-                for a in self.mpv_prev:
+                rel_set = self.mpv_prev.copy()
+                if self.ffi == -1: rel_set &= self.po.s.eff_ch_A_v
+                for a in rel_set:
                     rel_conns = (set(self.e[a].keys()) & self.mav_prev)
                     for b in rel_conns: self.e[a][b] = max((self.e[a][b] - conn_delta), 0)
+            """
             ###################################################################
             fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
             # fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
@@ -102,10 +108,14 @@ class Matrix:
             self.mpv = set()
             heap = [(len(set(self.e[a].keys()) ^ self.mav), random.randrange(100), a) for a in self.e.keys()]
             heapq.heapify(heap)
-            num_set_pred = len(self.po.s.unavail_idxs)
+            # num_set_pred = len(self.po.s.unavail_idxs)
+            num_set_pred = 20
             while heap and len(self.mpv) < num_set_pred:
                 k = heapq.heappop(heap)[2]
                 if k not in self.mpv: self.mpv.add(k)
+            # while heap:
+            #     k = heapq.heappop(heap)[2]
+            #     if k not in self.mpv: self.mpv.add(k)
             self.mpv_prev = self.mpv.copy()
             self.em = self.zero_rate = self.mto_rate = 0
             self.ov = set()
