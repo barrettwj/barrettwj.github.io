@@ -15,8 +15,6 @@ class Oracle:
                 a.update()
                 self.em_global += a.em
             self.em_global /= float(len(self.m))
-            print(f"EM: {(self.em_global * 100.0):.2f}%\tIDX: {self.s.ts_idx}\tZR: {self.m[0].zero_rate:.2f}" +
-                  f"\tMR: {self.m[0].mto_rate:.2f}\tEX: {len(self.m[0].excess_leaked_mpv)}")
 class Sensorium:
     def __init__(self, po_in):
         self.po = po_in
@@ -43,9 +41,9 @@ class Sensorium:
         while (len(self.eff_ch_A_v & self.unavail_idxs) > 0): self.eff_ch_A_v = {(a - 1) for a in self.eff_ch_A_v}
         self.unavail_idxs |= self.eff_ch_A_v
         self.sv = set()
-        ts_dim_pct = 0.10#---------------------------------------------------------------------------------------------------------HP
+        ts_dim_pct = 0.50#---------------------------------------------------------------------------------------------------------HP
         ts_dim = round(float(aff_ch_A_dim) * ts_dim_pct)
-        ts_len = 7#----------------------------------------------------------------------------------------------------------------HP
+        ts_len = 19#---------------------------------------------------------------------------------------------------------------HP
         self.ts = [set(random.sample(list(self.aff_ch_A_v), ts_dim)) for _ in range(ts_len)]
         self.ts_idx = self.mval = 0
         beh_mag = (ts_len - 2)#----------------------------------------------------------------------------------------------------HP
@@ -68,7 +66,7 @@ class Sensorium:
         min_val = min(abs(em_val - v) for v in self.em_aff_values.values())
         cands = [k for k, v in self.em_aff_values.items() if abs(em_val - v) == min_val]
         em_v = random.choice(cands).copy()
-        # if frozenset(fbv) not in self.beh_map.keys(): self.beh_map[frozenset(fbv.copy())] = idx_delta#-this causes issues!!!
+        if frozenset(fbv) not in self.beh_map.keys(): self.beh_map[frozenset(fbv.copy())] = idx_delta
         self.sv |= em_v
         self.sv |= fbv
 class Matrix:
@@ -76,11 +74,11 @@ class Matrix:
         self.po = po_in
         self.ffi = (mi_in - 1)
         self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
-        self.M = 49#-------------------------------------------------------------------------------------------------------------HP
+        self.M = 49#---------------------------------------------------------------------------------------------------------HP
         self.ov = self.mav = self.mpv = self.excess_leaked_mpv = set()
         self.e = dict()
-        self.adc_max = 20#-300------------------------------------------------------------------------------------------------------HP
-        self.adc_min = round(float(self.adc_max - 1) * 0.95)#-0.95------------------------------------------------------------------HP
+        self.adc_max = 100#-300-----------------------------------------------------------------------------------------------HP
+        self.adc_min = round(float(self.adc_max - 1) * 0.95)#-0.95-----------------------------------------------------------HP
         self.em = self.em_prev = self.em_delta = self.zero_rate = self.mto_rate = 0
     def update(self):
             # self.em_delta = (self.em - self.em_prev)
@@ -94,7 +92,7 @@ class Matrix:
             heap = [(len(set(self.e[a].keys()) ^ self.mav), random.randrange(100), a) for a in self.e.keys()]
             heapq.heapify(heap)
             # num_set_pred = len(self.po.s.unavail_idxs)
-            num_set_pred = 5
+            # num_set_pred = 7
             # while heap and len(self.mpv) < num_set_pred:
             while heap:
                 k = heapq.heappop(heap)[2]
@@ -145,14 +143,18 @@ class Matrix:
             self.zero_rate /= norm
             self.mto_rate /= norm
             self.excess_leaked_mpv = (self.mpv - mpv_ack)
-            for a in self.excess_leaked_mpv: self.ov.add((a // self.M))#-is this a good idea???
+            for a in self.excess_leaked_mpv:
+                self.ov.add(a // self.M)#-is this a good idea???
+                self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
             self.mav = mav_update.copy()
             #######################################################################
             new_dict = {}
             for a, inner_dict in self.e.items():
-                temp = {k: v - 1 for k, v in inner_dict.items() if v > 0}
+                temp = {k:(v - 1) for k, v in inner_dict.items() if (v > 0)}
                 if temp: new_dict[a] = temp
             self.e = new_dict
             #########################################################################
+            print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tIDX: {self.po.s.ts_idx}\tZR: {self.zero_rate:.2f}" +
+                  f"\tMR: {self.mto_rate:.2f}\tEX: {len(self.excess_leaked_mpv)}")
 oracle = Oracle()
 oracle.update()
