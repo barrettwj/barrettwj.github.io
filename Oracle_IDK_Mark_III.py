@@ -66,7 +66,7 @@ class Sensorium:
         min_val = min(abs(em_val - v) for v in self.em_aff_values.values())
         cands = [k for k, v in self.em_aff_values.items() if abs(em_val - v) == min_val]
         em_v = random.choice(cands).copy()
-        if frozenset(fbv) not in self.beh_map.keys(): self.beh_map[frozenset(fbv.copy())] = idx_delta
+        # if frozenset(fbv) not in self.beh_map.keys(): self.beh_map[frozenset(fbv.copy())] = idx_delta
         self.sv |= em_v
         self.sv |= fbv
 class Matrix:
@@ -142,10 +142,8 @@ class Matrix:
             self.em /= norm
             self.zero_rate /= norm
             self.mto_rate /= norm
-            self.excess_leaked_mpv = (self.mpv - mpv_ack)
-            for a in self.excess_leaked_mpv:
-                self.ov.add(a // self.M)#-is this a good idea???
-                self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
+            self.excess_leaked_mpv = (self.mpv - fbv - mpv_ack)
+            # for a in self.excess_leaked_mpv: self.ov.add(a // self.M)#-is this a good idea???
             self.mav = mav_update.copy()
             #######################################################################
             new_dict = {}
