@@ -63,8 +63,9 @@ class Sensorium:
         self.ts_idx = ((self.ts_idx + len(self.ts) + idx_delta) % len(self.ts))
         # self.ts_idx = ((self.ts_idx + len(self.ts) + 1) % len(self.ts))
         self.sv = self.ts[self.ts_idx].copy()
-        min_val = min(abs(em_val - v) for v in self.em_aff_values.values())
-        cands = [k for k, v in self.em_aff_values.items() if abs(em_val - v) == min_val]
+        diffs = {k: abs(em_val - v) for k, v in self.em_aff_values.items()}
+        min_val = min(diffs.values())
+        cands = [k for k, v in diffs.items() if v == min_val]
         em_v = random.choice(cands).copy()
         # if frozenset(fbv) not in self.beh_map.keys(): self.beh_map[frozenset(fbv.copy())] = idx_delta
         self.sv |= em_v
@@ -75,44 +76,29 @@ class Matrix:
         self.ffi = (mi_in - 1)
         self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
         self.M = 49#---------------------------------------------------------------------------------------------------------HP
-        self.ov = self.mav = self.mpv = self.excess_leaked_mpv = set()
+        self.ov = self.mav = self.mpv = self.fbv = self.excess_leaked_mpv = set()
         self.e = dict()
-        self.adc_max = 100#-300-----------------------------------------------------------------------------------------------HP
+        self.adc_max = 100#-300----------------------------------------------------------------------------------------------HP
         self.adc_min = round(float(self.adc_max - 1) * 0.95)#-0.95-----------------------------------------------------------HP
-        self.em = self.em_prev = self.em_delta = self.zero_rate = self.mto_rate = 0
+        self.em = self.em_prev = self.em_error = self.zero_rate = self.mto_rate = 0
+        self.em_sp = 0.10#---------------------------------------------------------------------------------------------------HP
     def update(self):
-            # self.em_delta = (self.em - self.em_prev)
-            # self.em_prev = self.em
-            fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
-            # fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
-            for a in fbv:
-                b = (a // self.M)
-                if (len(fbv & set(range((b * self.M), ((b + 1) * self.M)))) == 1): self.mav.add(a)
-            self.mpv = set()
-            heap = [(len(set(self.e[a].keys()) ^ self.mav), random.randrange(100), a) for a in self.e.keys()]
-            heapq.heapify(heap)
-            # num_set_pred = len(self.po.s.unavail_idxs)
-            # num_set_pred = 7
-            # while heap and len(self.mpv) < num_set_pred:
-            while heap:
-                k = heapq.heappop(heap)[2]
-                if k not in self.mpv: self.mpv.add(k)
+            iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].ov.copy()
             self.em = self.zero_rate = self.mto_rate = 0
             self.ov = set()
             mav_update = set()
             mpv_ack = set()
             new_adc = random.randint(self.adc_min, self.adc_max)
-            # new_adc = self.adc_max
-            iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].ov.copy()
             ci_dict = {a:set(range((a * self.M), ((a + 1) * self.M))) for a in iv}
+            e_keys = set(self.e.keys())
             for a, ci in ci_dict.items():
                 pv = (ci & self.mpv)
                 mpv_ack |= pv
-                if len(pv) == 0:
+                pv_len = len(pv)
+                if pv_len == 0:
                     self.ov.add(a)
                     self.em += 1.0
                     self.zero_rate += 1.0
-                    e_keys = set(self.e.keys())
                     ci_mod = ci - e_keys
                     while not ci_mod:
                         common_keys = e_keys & ci
@@ -130,11 +116,11 @@ class Matrix:
                     wi = random.choice(list(ci_mod))
                 else:
                     wi = random.choice(list(pv))
-                    if len(pv) > 1:
+                    if pv_len > 1:
                         self.ov.add(a)
-                        self.em += (float(len(pv) - 1) / float(self.M - 1))
+                        self.em += (float(pv_len - 1) / float(self.M - 1))
                         self.mto_rate += 1.0
-                if wi in self.e.keys():
+                if wi in e_keys:
                     for b in self.mav: self.e[wi][b] = new_adc
                 else: self.e[wi] = {b:new_adc for b in self.mav}
                 mav_update.add(wi)
@@ -142,16 +128,42 @@ class Matrix:
             self.em /= norm
             self.zero_rate /= norm
             self.mto_rate /= norm
-            self.excess_leaked_mpv = (self.mpv - fbv - mpv_ack)
+            #############################################################
+            self.excess_leaked_mpv = (self.mpv - self.fbv - mpv_ack)
             # for a in self.excess_leaked_mpv: self.ov.add(a // self.M)#-is this a good idea???
-            self.mav = mav_update.copy()
-            #######################################################################
+            # self.em_error = (self.em - self.em_prev)
+            # self.em_prev = self.em
+            ##########################################################################################
+            """
+            if self.ffi == -1:
+                em_sp_abs_error = float(abs(self.em - self.em_sp))
+                sc = 10000.0#----------------------------------------------------------------------------------------------HP
+                # sc_val = round(em_sp_abs_error * sc)
+                sc_val = (em_sp_abs_error * sc)
+                ts = (self.mpv & self.po.s.eff_ch_A_v)
+                for a in ts:
+                    for b in (self.mav & set(self.e[a].keys())): self.e[a][b] = max(0, round(float(self.e[a][b]) / sc_val))
+            """
+            ##########################################################################################
             new_dict = {}
             for a, inner_dict in self.e.items():
                 temp = {k:(v - 1) for k, v in inner_dict.items() if (v > 0)}
                 if temp: new_dict[a] = temp
             self.e = new_dict
-            #########################################################################
+            ##########################################################################################
+            self.mav = mav_update.copy()
+            self.fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
+            # self.fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
+            for a in self.fbv:
+                b = (a // self.M)
+                if (len(self.fbv & set(range((b * self.M), ((b + 1) * self.M)))) == 1): self.mav.add(a)
+            self.mpv = set()
+            heap = [(len(set(self.e[a].keys()) ^ self.mav), random.randrange(100), a) for a in self.e.keys()]
+            heapq.heapify(heap)
+            while heap:
+                k = heapq.heappop(heap)[2]
+                if k not in self.mpv: self.mpv.add(k)
+            ##########################################################################################
             print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tIDX: {self.po.s.ts_idx}\tZR: {self.zero_rate:.2f}" +
                   f"\tMR: {self.mto_rate:.2f}\tEX: {len(self.excess_leaked_mpv)}")
 oracle = Oracle()
