@@ -65,7 +65,7 @@ class Sensorium:
         cands = [k for k, v in diffs.items() if v == min_val]
         em_v = random.choice(cands).copy()
         # if frozenset(fbv) not in self.beh_map.keys(): self.beh_map[frozenset(fbv.copy())] = idx_delta
-        self.sv |= em_v
+        # self.sv |= em_v
         self.sv |= fbv
 class Matrix:
     def __init__(self, po_in, mi_in):
@@ -160,7 +160,7 @@ class Matrix:
                 k = heapq.heappop(heap)[2]
                 if k not in self.mpv: self.mpv.add(k)
             ##########################################################################################
-            # print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tIDX: {self.po.s.ts_idx}\tZR: {self.zero_rate:.2f}" +
-            #       f"\tMR: {self.mto_rate:.2f}\tEX: {len(self.excess_leaked_mpv)}\tINC: {len(iv)}")
+            print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tIDX: {self.po.s.ts_idx}\tZR: {self.zero_rate:.2f}" +
+                  f"\tMR: {self.mto_rate:.2f}\tEX: {len(self.excess_leaked_mpv)}\tINC: {len(iv)}")
 oracle = Oracle()
 oracle.update()
