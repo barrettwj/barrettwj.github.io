@@ -9,7 +9,7 @@ set_dim = 10
 archetype_set = [random.choice(set_values) for _ in range(set_dim)]
 max_diff = float((max(set_values) - min(set_values)) * set_dim)
 enc_range = (set_dim * val_dim)
-num_test_sets = 10000
+num_test_sets = 100000
 test_data = []
 val_A = (score_dim - 1)
 norm_A = float(val_A)
@@ -19,14 +19,15 @@ for i in range(num_test_sets):
     test_data.append([score_values[idx], rs.copy()])
 #________________________________________________EXPOSURE________________________________________
 learning_array = [0] * enc_range
-norm_B = float(score_dim)
+norm_B = float(score_dim - 1)
 norm_C = float(num_test_sets * 2)
 for v in test_data:
-    score = (float(v[0]) / norm_B)
+    score = (float(v[0] - 1) / norm_B)
     encoded_set = [((val_dim * i) + (a - 1)) for i, a in enumerate(v[1])]
     learning_array = [(a + score) if i in encoded_set else (a - score) for i, a in enumerate(learning_array)]
 learning_array = [(float(a + num_test_sets) / norm_C) for a in learning_array]
 #_________________________________________________RESULTS______________________________________
+#"""
 print(archetype_set)
 print()
 for a in range(set_dim):
@@ -34,5 +35,17 @@ for a in range(set_dim):
     print(f"Digit at position {a} {('-' * 150)}\n")
     for k, v in td.items(): print(f"{k}: {v:.5f}\t{('|' * round(v * 500.0))}")
     print()
+num_rep_patterns = 5
+for a in range(num_rep_patterns):
+    pattern = []
+    for b in range(set_dim):
+        tl = learning_array[(b * val_dim):((b + 1) * val_dim)].copy()
+        min_val = min(tl)
+        diff = (max(tl) - min_val)
+        wheel = []
+        for i, c in enumerate(tl): wheel.extend([(i + 1)] * round(((c - min_val) / diff) * 100000.0))
+        pattern.append(random.choice(wheel))
+    print(pattern)
+#"""
 
 
