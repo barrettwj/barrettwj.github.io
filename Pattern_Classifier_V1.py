@@ -28,28 +28,32 @@ for v in test_data:
 learning_array = [(float(a + num_test_sets) / norm_C) for a in learning_array]
 #_________________________________________________RESULTS______________________________________
 #"""
-print(archetype_set)
+print()
+print(f"{archetype_set}  Archetype Set")
 print()
 for a in range(set_dim):
     td = {(b + 1):learning_array[((a * val_dim) + b)] for b in range(val_dim)}
     print(f"Digit at position {a} {('-' * 150)}\n")
     for k, v in td.items(): print(f"{k}: {v:.5f}\t{('|' * round(v * 500.0))}")
     print()
+print(f"{archetype_set}  Archetype Set")
+print()
 num_rep_patterns = 5
 for a in range(num_rep_patterns):
     pattern = []
     for b in range(set_dim):
-        tl = learning_array[(b * val_dim):((b + 1) * val_dim)].copy()
+        tl = learning_array[(b * val_dim):((b + 1) * val_dim)]
         min_val = min(tl)
         diff = (max(tl) - min_val)
         wheel = []
-        # for i, c in enumerate(tl): wheel.extend([(i + 1)] * round(((c - min_val) / diff) * 100000.0))
-        for i, c in enumerate(tl):
-            # for d in range(round((c - min_val) * 100000.0)): wheel.append((i + 1))
-            for d in range(round(c * 100.0)): wheel.append((i + 1))
-            # wheel.extend([(i + 1)] * round((c - min_val) * 100000.0))
+        # for i, c in enumerate(tl): wheel.extend([(i + 1)] * round(((c - min_val) / diff) * 1000.0))
+        for i, c in enumerate(tl): wheel.extend([(i + 1)] * round((c - min_val) * 10000.0))
+        # random.shuffle(wheel)
+        # pattern.append(wheel[0])
         pattern.append(random.choice(wheel))
-    print(pattern)
+    idx = val_A - round((float(sum([abs(a - b) for a, b in zip(archetype_set, pattern)])) / max_diff) * norm_A)
+    score_val = score_values[idx]
+    print(f"{pattern}\tScore: {score_val}")
 #"""
 
 
