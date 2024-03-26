@@ -43,7 +43,11 @@ for a in range(num_rep_patterns):
         min_val = min(tl)
         diff = (max(tl) - min_val)
         wheel = []
-        for i, c in enumerate(tl): wheel.extend([(i + 1)] * round(((c - min_val) / diff) * 100000.0))
+        # for i, c in enumerate(tl): wheel.extend([(i + 1)] * round(((c - min_val) / diff) * 100000.0))
+        for i, c in enumerate(tl):
+            # for d in range(round((c - min_val) * 100000.0)): wheel.append((i + 1))
+            for d in range(round(c * 100.0)): wheel.append((i + 1))
+            # wheel.extend([(i + 1)] * round((c - min_val) * 100000.0))
         pattern.append(random.choice(wheel))
     print(pattern)
 #"""
