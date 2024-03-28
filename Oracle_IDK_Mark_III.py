@@ -20,8 +20,8 @@ class Sensorium:
         self.po = po_in
         self.mval = self.po.mval
         #______________________________________________________________EM INTEROCEPTION_______________________________________________
-        em_int_card = 3#------------------------------------------------------------------------------------------------------------HP
-        em_int_dim = 37#-should be odd!!!-------------------------------------------------------------------------------------------HP
+        em_int_card = 7#------------------------------------------------------------------------------------------------------------HP
+        em_int_dim = 107#-should be odd!!!-------------------------------------------------------------------------------------------HP
         start_idx = -round((em_int_dim - 1) / 2)
         em_int_v = {(start_idx + a) for a in range(em_int_dim)}
         em_int_num_values = (em_int_dim - em_int_card + 1)
@@ -30,7 +30,7 @@ class Sensorium:
                                 (float(a) * em_val_interval) for a in range(em_int_num_values)}
         self.unavail_idxs = em_int_v.copy()
         #______________________________________________________________RF AFFERENT___________________________________________________
-        aff_ch_A_dim = 37#-should be odd!!!----------------------------------------------------------------------------------------HP
+        aff_ch_A_dim = 107#-should be odd!!!----------------------------------------------------------------------------------------HP
         aff_ch_A_card_pct = 0.40#--------------------------------------------------------------------------------------------------HP
         self.aff_ch_A_card = round(float(aff_ch_A_dim) * aff_ch_A_card_pct)
         start_idx = -round((aff_ch_A_dim - 1) / 2)
@@ -38,7 +38,7 @@ class Sensorium:
         while (len(self.aff_ch_A_v & self.unavail_idxs) > 0): self.aff_ch_A_v = {(a + 1) for a in self.aff_ch_A_v}
         self.unavail_idxs |= self.aff_ch_A_v
         #______________________________________________________________RF EFFERENT___________________________________________________
-        eff_ch_A_dim = 37#-should be odd!!!----------------------------------------------------------------------------------------HP
+        eff_ch_A_dim = 107#-should be odd!!!----------------------------------------------------------------------------------------HP
         eff_ch_A_card_pct = 0.40#--------------------------------------------------------------------------------------------------HP
         self.eff_ch_A_card = round(float(eff_ch_A_dim) * eff_ch_A_card_pct)
         start_idx = -round((eff_ch_A_dim - 1) / 2)
@@ -60,9 +60,7 @@ class Sensorium:
     def update(self):
         em_val = self.po.m[0].em
         fbv = (self.po.m[0].mpv & self.eff_ch_A_v_exp)
-        # print(len(fbv))
         fbv = {a for a in fbv if (len(fbv & set(range(((a // self.mval) * self.mval), (((a // self.mval) + 1) * self.mval)))) == 1)}
-        # print(len(fbv))
         if ((len(fbv) == 0) and (random.randrange(1000000) < 1000)):#-------------------------------------------------------------HP
             fbv = set(random.sample(list(self.eff_ch_A_v), self.eff_ch_A_card))
             self.idx_delta = random.choice(list(self.beh_set))
@@ -81,7 +79,7 @@ class Sensorium:
         min_val = min(diffs.values())
         cands = [k for k, v in diffs.items() if v == min_val]
         em_v = random.choice(cands).copy()
-        # self.sv |= em_v
+        self.sv |= em_v
         self.sv |= fbv
 class Matrix:
     def __init__(self, po_in, mi_in):
@@ -91,7 +89,7 @@ class Matrix:
         self.M = self.po.mval
         self.ov = self.mav = self.mpv = self.fbv = self.excess_leaked_mpv = set()
         self.e = dict()
-        self.adc_max = 1800#-300----------------------------------------------------------------------------------------------HP
+        self.adc_max = 100#-300----------------------------------------------------------------------------------------------HP
         self.adc_min = round(float(self.adc_max - 1) * 0.95)#-0.95-----------------------------------------------------------HP
         self.em = self.em_prev = self.em_error = self.zero_rate = self.mto_rate = 0
         self.em_sp = 0.10#---------------------------------------------------------------------------------------------------HP
@@ -105,8 +103,6 @@ class Matrix:
             ci_dict = {a:set(range((a * self.M), ((a + 1) * self.M))) for a in iv}
             e_keys = set(self.e.keys())
             for a, ci in ci_dict.items():
-                # val = len(ci & self.po.s.eff_ch_A_v_exp)
-                # if val > 0: print(val)
                 pv = (ci & self.mpv)
                 mpv_ack |= pv
                 pv_len = len(pv)
@@ -149,17 +145,14 @@ class Matrix:
             # self.em_error = (self.em - self.em_prev)
             # self.em_prev = self.em
             ##########################################################################################
-            #"""
+            #---------------------------------------------------------------------------IS THIS EVEN NECESSARY??????????
             if self.ffi == -1:
                 em_sp_abs_error = float(abs(self.em - self.em_sp))
                 sc = 200.0#----------------------------------------------------------------------------------------------HP
-                # sc_val = round(em_sp_abs_error * sc)
-                sc_val = (em_sp_abs_error * sc)
-                ts = (self.mpv & self.po.s.eff_ch_A_v_exp)
-                # print(len(ts))
-                for a in ts:
-                    for b in (self.mav & set(self.e[a].keys())): self.e[a][b] = max(0, round(float(self.e[a][b]) / sc_val))
-            #"""
+                sc_val = round(em_sp_abs_error * sc)
+                # ts = (self.mpv & self.po.s.eff_ch_A_v_exp)
+                # for a in ts:
+                #     for b in (self.mav & set(self.e[a].keys())): self.e[a][b] = max(0, (self.e[a][b] - sc_val))
             ##########################################################################################
             new_dict = {}
             for a, inner_dict in self.e.items():
@@ -176,13 +169,12 @@ class Matrix:
             heap = [(len(set(self.e[a].keys()) ^ self.mav), random.randrange(100), a) for a in self.e.keys()]
             heapq.heapify(heap)
             while heap:
-            # while heap and (len(self.mpv) < self.po.s.sv_card):
                 k = heapq.heappop(heap)[2]
                 if k not in self.mpv: self.mpv.add(k)
             ##########################################################################################
             agent_str = f"\tAG: {self.po.s.idx_delta}" if ((self.ffi == -1) and self.po.s.agency) else ""
             print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tIDX: {self.po.s.ts_idx}\tZR: {self.zero_rate:.2f}" +
-                  f"\tMR: {self.mto_rate:.2f}\tEX: {len(self.excess_leaked_mpv)}\tINC: {len(iv)}" +
-                  f"\tBEH: {len(self.po.s.beh_map)}" + agent_str)
+                  f"\tMR: {self.mto_rate:.2f}\tEX: {len(self.excess_leaked_mpv)}" +
+                  f"\tBEH: {len(self.po.s.beh_map)}\tMVP: {len(self.mpv)}" + agent_str)
 oracle = Oracle()
 oracle.update()
