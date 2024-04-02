@@ -9,7 +9,6 @@ class Oracle:
         self.em_global = 0
     def update(self):
         while True:
-            self.s.update()
             self.em_global = 0
             for a in self.m:
                 a.update()
@@ -58,7 +57,7 @@ class Sensorium:
         self.ts_idx = self.idx_delta = 0
         beh_mag = (len(self.ts) - 2)#---------------------------------------------------------------------------------------------HP
         self.beh_set = {(beh_mag - a) for a in range((beh_mag * 2) + 1)}
-        self.beh_map_max_size = 5#----------------------------------------------------------------------------------------------HP
+        self.beh_map_max_size = 5#-----------------------------------------------------------------------------------------------HP
         tv = self.eff_ch_A_v.copy()
         self.beh_map = dict()
         for _ in range(self.beh_map_max_size):
@@ -87,6 +86,7 @@ class Sensorium:
         em_v = random.choice(cands).copy()
         # self.sv |= em_v
         self.sv |= bv
+        return self.sv
 class Matrix:
     def __init__(self, po_in, mi_in):
         self.po = po_in
@@ -100,12 +100,27 @@ class Matrix:
         self.em = self.em_prev = self.em_error = self.zero_rate = self.mto_rate = 0
         self.em_sp = 0.10#--------------------------------------------------------------------------------------------------------HP
     def update(self):
-            self.fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()
-            # self.fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()
+            self.fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else set()#---------------------------------------------HP
+            # self.fbv = self.po.m[self.fbi].mpv.copy() if (self.fbi != -1) else self.po.m[0].mpv.copy()#-------------------------HP
             fbv_conf_v = {(a // self.mval):a for a in self.fbv
                           if (len(self.fbv & set(range(((a // self.mval) * self.mval), (((a // self.mval) + 1) * self.mval)))) == 1)}
             fbv_conf_v_keys = set(fbv_conf_v.keys())
-            iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].ov.copy()
+            ##########################################################################################
+            self.mpv = set()
+            heap = []
+            for a in self.e.keys():
+                sum = len(set(self.e[a][0].keys()) ^ self.mav)
+                cli = (a // self.mval)
+                # if cli in fbv_conf_v_keys: sum += len(set(self.e[a][1].keys()) ^ {fbv_conf_v[cli]})#---------------------------HP
+                if cli in fbv_conf_v_keys: sum -= len(set(self.e[a][1].keys()) ^ {fbv_conf_v[cli]})#---------------------------HP
+                heap.append((sum, random.randrange(100), a))
+            heapq.heapify(heap)
+            num_to_set_predictive = (self.po.s.sv_card - 0)#---------------------------------------------------------------------HP
+            while heap and (len(self.mpv) < num_to_set_predictive):
+                k = heapq.heappop(heap)[2]
+                if k not in self.mpv: self.mpv.add(k)
+            iv = self.po.s.update().copy() if self.ffi == -1 else self.po.m[self.ffi].ov.copy()
+            # iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].ov.copy()
             self.em = self.zero_rate = self.mto_rate = 0
             self.ov = set()
             mav_update = set()
@@ -170,21 +185,7 @@ class Matrix:
             #     self.e[kA][0] = {k:(v - 1) for k, v in self.e[kA][0].items() if (v > 0)}
             #     self.e[kA][1] = {k:(v - 1) for k, v in self.e[kA][1].items() if (v > 0)}
             # self.e = {k:v for k, v in self.e.items() if v[0] or v[1]}
-            ##########################################################################################
             self.mav = mav_update.copy()
-            self.mpv = set()
-            heap = []
-            for a in self.e.keys():
-                sum = len(set(self.e[a][0].keys()) ^ self.mav)
-                cli = (a // self.mval)
-                # if cli in fbv_conf_v_keys: sum += len(set(self.e[a][1].keys()) ^ {fbv_conf_v[cli]})
-                if cli in fbv_conf_v_keys: sum -= len(set(self.e[a][1].keys()) ^ {fbv_conf_v[cli]})
-                heap.append((sum, random.randrange(100), a))
-            heapq.heapify(heap)
-            num_to_set_predictive = (self.po.s.sv_card - 0)
-            while heap and (len(self.mpv) < num_to_set_predictive):
-                k = heapq.heappop(heap)[2]
-                if k not in self.mpv: self.mpv.add(k)
             ##########################################################################################
             agent_str = f"\tAG: {self.po.s.idx_delta}" if (self.ffi == -1) else ""
             print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tZR: {self.zero_rate:.2f}" +
