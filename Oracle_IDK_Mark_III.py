@@ -6,7 +6,7 @@ class Oracle:
         self.M = 49#-49-----------------------------------------------------------------------------------------------------------HP
         self.s = Sensorium(self)
         self.m = [Matrix(self, a) for a in range(self.H)]
-        self.em_global = 0
+        # self.em_global = 0
     def update(self):
         while True:
             self.s.update()
@@ -30,17 +30,13 @@ class Sensorium:
                                 (float(a) * em_val_interval) for a in range(em_int_num_values)}
         self.unavail_idxs = em_int_v.copy()
         #______________________________________________________________RF AFFERENT___________________________________________________
-        aff_ch_A_dim = 107#-should be odd!!!---------------------------------------------------------------------------------------HP
-        aff_ch_A_card_pct = 0.15#--------------------------------------------------------------------------------------------------HP
-        self.aff_ch_A_card = round(float(aff_ch_A_dim) * aff_ch_A_card_pct)
+        aff_ch_A_dim = 507#-should be odd!!!---------------------------------------------------------------------------------------HP
         start_idx = -round((aff_ch_A_dim - 1) / 2)
         self.aff_ch_A_v = {(start_idx + a) for a in range(aff_ch_A_dim)}
         while (len(self.aff_ch_A_v & self.unavail_idxs) > 0): self.aff_ch_A_v = {(a + 1) for a in self.aff_ch_A_v}
         self.unavail_idxs |= self.aff_ch_A_v
         #______________________________________________________________RF EFFERENT___________________________________________________
-        eff_ch_A_dim = 107#-should be odd!!!---------------------------------------------------------------------------------------HP
-        eff_ch_A_card_pct = 0.15#--------------------------------------------------------------------------------------------------HP
-        self.eff_ch_A_card = round(float(eff_ch_A_dim) * eff_ch_A_card_pct)
+        eff_ch_A_dim = 507#-should be odd!!!---------------------------------------------------------------------------------------HP
         start_idx = -round((eff_ch_A_dim - 1) / 2)
         self.eff_ch_A_v = {(start_idx + a) for a in range(eff_ch_A_dim)}
         while (len(self.eff_ch_A_v & self.unavail_idxs) > 0): self.eff_ch_A_v = {(a - 1) for a in self.eff_ch_A_v}
@@ -49,6 +45,7 @@ class Sensorium:
         for a in self.eff_ch_A_v: self.eff_ch_A_v_exp |= set(range((a * self.M), ((a + 1) * self.M)))
         self.sv = set()
         ts_len = 5#---------------------------------------------------------------------------------------------------------------HP
+        self.aff_ch_A_card = round(float(aff_ch_A_dim) / float(ts_len + 1))
         tv = self.aff_ch_A_v.copy()
         self.ts = []
         for _ in range(ts_len):
@@ -58,7 +55,8 @@ class Sensorium:
         self.ts_idx = self.idx_delta = 0
         beh_mag = (len(self.ts) - 2)#---------------------------------------------------------------------------------------------HP
         self.beh_set = {(beh_mag - a) for a in range((beh_mag * 2) + 1)}
-        self.beh_map_max_size = 5#-----------------------------------------------------------------------------------------------HP
+        self.beh_map_max_size = ts_len#-----------------------------------------------------------------------------------------------HP
+        self.eff_ch_A_card = round(float(eff_ch_A_dim) / float(self.beh_map_max_size + 1))
         tv = self.eff_ch_A_v.copy()
         self.beh_map = dict()
         for _ in range(self.beh_map_max_size):
@@ -95,7 +93,7 @@ class Matrix:
         self.M = self.po.M
         self.ov = self.mav = self.mpv = self.fbv = self.exc_mpv = set()
         self.e = dict()
-        self.adc_max = 40#-300---------------------------------------------------------------------------------------------------HP
+        self.adc_max = 100#-300---------------------------------------------------------------------------------------------------HP
         self.adc_min = round(float(self.adc_max - 1) * 0.95)#-0.95----------------------------------------------------------------HP
         self.em = self.em_prev = self.em_error = self.zero_rate = self.mto_rate = 0
         self.em_sp = 0.10#--------------------------------------------------------------------------------------------------------HP
@@ -106,6 +104,7 @@ class Matrix:
             self.fbv_conf_v = {(a // self.M):a for a in self.fbv
                           if (len(self.fbv & set(range(((a // self.M) * self.M), (((a // self.M) + 1) * self.M)))) == 1)}
             ##########################################################################################
+            self.update_mpv()
             iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].ov.copy()
             self.em = self.zero_rate = self.mto_rate = 0
             self.ov = set()
@@ -127,7 +126,7 @@ class Matrix:
                             if not ci_mod:
                                 self.e[b][0] = {k:(v - 1) for k, v in self.e[b][0].items() if (v > 0)}
                                 self.e[b][1] = {k:(v - 1) for k, v in self.e[b][1].items() if (v > 0)}
-                                if not self.e[b][0] or not self.e[b][1]:#----------------------------------------HP
+                                if not self.e[b][0] and not self.e[b][1]:#----------------------------------------HP
                                 # if not self.e[b][0]:
                                     self.e = {k:v for k, v in self.e.items() if k != b}
                                     ci_mod = ci - set(self.e.keys())
@@ -158,7 +157,6 @@ class Matrix:
                 if (cli in self.fbv_conf_v.keys()): self.e[a][1][self.fbv_conf_v[cli]] = new_adc
                 self.ov.add(cli)
             ##########################################################################################
-            self.update_mpv()
             self.mav = mav_update.copy()
             # if self.ffi == -1:
             #     em_sp_abs_error = float(abs(self.em - self.em_sp))
@@ -184,8 +182,8 @@ class Matrix:
         for a in self.e.keys():
             sum = len(set(self.e[a][0].keys()) ^ self.mav)
             cli = (a // self.M)
-            # if cli in self.fbv_conf_v.keys(): sum += len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#---------------------------HP
-            if cli in self.fbv_conf_v.keys(): sum -= len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#-THIS ONE IS BETTER!!!-------HP
+            if cli in self.fbv_conf_v.keys(): sum += len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#---------------------------HP
+            # if cli in self.fbv_conf_v.keys(): sum -= len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#-THIS ONE IS BETTER???-------HP
             heap.append((sum, random.randrange(100), a))
         heapq.heapify(heap)
         num_to_set_predictive = (self.po.s.sv_card - 3)#---------------------------------------------------------------------HP
