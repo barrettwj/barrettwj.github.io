@@ -1,5 +1,6 @@
 import random
 import heapq
+from math import exp
 class Oracle:
     def __init__(self):
         self.H = 3#----------------------------------------------------------------------------------------------------------------HP
@@ -104,7 +105,7 @@ class Matrix:
             self.fbv_conf_v = {(a // self.M):a for a in self.fbv
                           if (len(self.fbv & set(range(((a // self.M) * self.M), (((a // self.M) + 1) * self.M)))) == 1)}
             ##########################################################################################
-            self.update_mpv()
+            if (len(self.e.keys()) > 0): self.update_mpv()
             iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].ov.copy()
             self.em = self.zero_rate = self.mto_rate = 0
             self.ov = set()
@@ -178,19 +179,25 @@ class Matrix:
                   f"\tBEH: {len(self.po.s.beh_map)}\tMVP: {len(self.mpv)}" + agent_str)
     def update_mpv(self):
         self.mpv = set()
-        heap = []
+        logits = []
         for a in self.e.keys():
-            sum = len(set(self.e[a][0].keys()) ^ self.mav)
+            su = len(set(self.e[a][0].keys()) ^ self.mav)
             cli = (a // self.M)
-            if cli in self.fbv_conf_v.keys(): sum += len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#---------------------------HP
-            # if cli in self.fbv_conf_v.keys(): sum -= len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#-THIS ONE IS BETTER???-------HP
-            heap.append((sum, random.randrange(100), a))
+            # if cli in self.fbv_conf_v.keys(): su += len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#---------------------------HP
+            if cli in self.fbv_conf_v.keys(): su -= len(set(self.e[a][1].keys()) ^ {self.fbv_conf_v[cli]})#-THIS ONE IS BETTER???-------HP
+            logits.append(su)
+        temp = 1.0#------------------------------------------------------------------------------------------------------------------HP
+        hm = (float(max(logits)) / temp)
+        e_x = [exp((float(i) / temp) - hm) for i in logits]
+        su = sum(e_x)
+        heap = [((1.0 - (e_x[i] / su)), random.randrange(100), a) for i, a in enumerate(self.e.keys())]
         heapq.heapify(heap)
         num_to_set_predictive = (self.po.s.sv_card - 3)#---------------------------------------------------------------------HP
-        while heap and (len(self.mpv) < num_to_set_predictive): self.mpv.add(heapq.heappop(heap)[2])
-        # thresh = 33#-----------------------------------------------------------------------------------------------------------HP
+        # while heap and (len(self.mpv) < num_to_set_predictive): self.mpv.add(heapq.heappop(heap)[2])
+        thresh = 0.10#-----------------------------------------------------------------------------------------------------------HP
         # while heap and (len(self.mpv) < num_to_set_predictive):
-        #     d, r, k = heapq.heappop(heap)
-        #     if d < thresh: self.mpv.add(k)
+        while heap:
+            d, r, k = heapq.heappop(heap)
+            if d < thresh: self.mpv.add(k)
 oracle = Oracle()
 oracle.update()
