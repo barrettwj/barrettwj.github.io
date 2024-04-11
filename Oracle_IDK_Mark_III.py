@@ -142,7 +142,6 @@ class Matrix:
                         if (a in self.fbv_conf_v.keys()): self.e[wi][1][self.fbv_conf_v[a]] = new_adc
                     for b in self.mav: self.e[wi][0][b] = new_adc
                 mav_update.add(wi)
-            #########################################################################################
             norm = float(max(1, len(ci_dict)))
             self.em /= norm
             self.zero_rate /= norm
@@ -166,12 +165,14 @@ class Matrix:
                 #     for b in (self.mav & set(self.e[a].keys())): self.e[a][b] = max(0, (self.e[a][b] - sc_val))
             ##########################################################################################
             #"""
-            for kA in self.e.keys():
-                self.e[kA][0] = {k:(v - 1) for k, v in self.e[kA][0].items() if (v > 0)}
-                self.e[kA][1] = {k:(v - 1) for k, v in self.e[kA][1].items() if (v > 0)}
-            # self.e = {k:v for k, v in self.e.items() if v[0] or v[1]}
-            # self.e = {k:v for k, v in self.e.items() if v[0] and v[1]}
-            self.e = {k:v for k, v in self.e.items() if v[0]}
+            # if len(self.e.keys()) > 10:
+            if len(self.e.keys()) > -1:
+                for kA in self.e.keys():
+                    self.e[kA][0] = {k:(v - 1) for k, v in self.e[kA][0].items() if (v > 0)}
+                    self.e[kA][1] = {k:(v - 1) for k, v in self.e[kA][1].items() if (v > 0)}
+                # self.e = {k:v for k, v in self.e.items() if v[0] or v[1]}
+                # self.e = {k:v for k, v in self.e.items() if v[0] and v[1]}
+                self.e = {k:v for k, v in self.e.items() if v[0]}
             #"""
             self.update_mpv()
             agent_str = f"\tAG: {self.po.s.idx_delta}" if (self.ffi == -1) else ""
@@ -181,18 +182,21 @@ class Matrix:
     def update_mpv(self):
         self.mpv = set()
         heap = []
-        for a in self.e.keys():
+        ts = list(self.e.keys())
+        random.shuffle(ts)
+        valA = 1000
+        for a in ts:
             cli = (a // self.M)
             su = len(set(self.e[a][0].keys()) ^ self.mav)
-            if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a][1].keys())): su += 4#---------------------------HP
-            # if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a][1].keys())): su -= 400#---------------------------HP
+            if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a][1].keys())): su += valA#---------------------------HP
+            # if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a][1].keys())): su -= valA#---------------------------HP
             heap.append((su, random.randrange(10000), a))
         heapq.heapify(heap)
         if self.ffi == -1:
             num_set_pred = (self.po.s.sv_card - 3)
             while heap and (len(self.mpv) < num_set_pred): self.mpv.add(heapq.heappop(heap)[2])
         else:
-            thresh = 20#--------------------------------------------------------------------------------------------------------------------HP
+            thresh = (valA + 2)#------------------------------------------------------------------------------------------------------------HP
             while heap:
                 d, r, k = heapq.heappop(heap)
                 if (d < thresh): self.mpv.add(k)
