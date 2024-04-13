@@ -3,7 +3,7 @@ import heapq
 class Oracle:
     def __init__(self):
         self.H = 6#----------------------------------------------------------------------------------------------------------------HP
-        self.M = 49#-49-----------------------------------------------------------------------------------------------------------HP
+        self.M = 49#-49------------------------------------------------------------------------------------------------------------HP
         self.s = Sensorium(self)
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
@@ -16,7 +16,7 @@ class Sensorium:
         self.M = self.po.M
         #______________________________________________________________EM INTEROCEPTION_______________________________________________
         em_int_card = 3#------------------------------------------------------------------------------------------------------------HP
-        em_int_dim = 5#-should be odd!!!-------------------------------------------------------------------------------------------HP
+        em_int_dim = 5#-should be odd!!!--------------------------------------------------------------------------------------------HP
         start_idx = -round((em_int_dim - 1) / 2)
         em_int_v = {(start_idx + a) for a in range(em_int_dim)}
         em_int_num_values = (em_int_dim - em_int_card + 1)
@@ -25,13 +25,13 @@ class Sensorium:
                                 (float(a) * em_val_interval) for a in range(em_int_num_values)}
         self.unavail_idxs = em_int_v.copy()
         #______________________________________________________________RF AFFERENT___________________________________________________
-        aff_ch_A_dim = 97#-should be odd!!!---------------------------------------------------------------------------------------HP
+        aff_ch_A_dim = 297#-should be odd!!!----------------------------------------------------------------------------------------HP
         start_idx = -round((aff_ch_A_dim - 1) / 2)
         self.aff_ch_A_v = {(start_idx + a) for a in range(aff_ch_A_dim)}
         while (len(self.aff_ch_A_v & self.unavail_idxs) > 0): self.aff_ch_A_v = {(a + 1) for a in self.aff_ch_A_v}
         self.unavail_idxs |= self.aff_ch_A_v
         #______________________________________________________________RF EFFERENT___________________________________________________
-        eff_ch_A_dim = 97#-should be odd!!!---------------------------------------------------------------------------------------HP
+        eff_ch_A_dim = 297#-should be odd!!!----------------------------------------------------------------------------------------HP
         start_idx = -round((eff_ch_A_dim - 1) / 2)
         self.eff_ch_A_v = {(start_idx + a) for a in range(eff_ch_A_dim)}
         while (len(self.eff_ch_A_v & self.unavail_idxs) > 0): self.eff_ch_A_v = {(a - 1) for a in self.eff_ch_A_v}
@@ -48,7 +48,7 @@ class Sensorium:
         self.ts_idx = self.idx_delta = 0
         beh_mag = (len(self.ts) - 2)#---------------------------------------------------------------------------------------------HP
         self.beh_set = {(beh_mag - a) for a in range((beh_mag * 2) + 1)}
-        self.beh_map_max_size = ts_len#------------------------------------------------------------------------------------------HP
+        self.beh_map_max_size = ts_len#-------------------------------------------------------------------------------------------HP
         self.eff_ch_A_card = round(float(eff_ch_A_dim) / float(self.beh_map_max_size + 1))
         tv = self.eff_ch_A_v.copy()
         self.beh_map = dict()
@@ -60,9 +60,8 @@ class Sensorium:
             self.beh_map[frozenset(rv.copy())] = ri
         self.sv_card = (em_int_card + self.aff_ch_A_card + self.eff_ch_A_card)
     def update(self):
-        em_val = self.po.m[0].em
-        bv = self.po.m[0].mpv.copy()
-        bv = {(a // self.M) for a in bv if (len(bv & set(range(((a // self.M) * self.M), (((a // self.M) + 1) * self.M)))) == 1)}
+        rv = self.po.m[0].mpv.copy()
+        bv = {(a // self.M) for a in rv if (len(rv & set(range(((a // self.M) * self.M), (((a // self.M) + 1) * self.M)))) == 1)}
         bv &= self.eff_ch_A_v
         heap = [(len(k ^ bv), random.randrange(10000), k) for k in self.beh_map.keys()]
         heapq.heapify(heap)
@@ -70,10 +69,11 @@ class Sensorium:
         self.idx_delta = self.beh_map[bv]
         self.ts_idx = ((self.ts_idx + len(self.ts) + self.idx_delta) % len(self.ts))
         self.sv = self.ts[self.ts_idx].copy()
-        diffs = {k: abs(em_val - v) for k, v in self.em_aff_values.items()}
-        min_val = min(diffs.values())
-        cands = [k for k, v in diffs.items() if v == min_val]
-        em_v = random.choice(cands).copy()
+        # em_val = self.po.m[0].em
+        # diffs = {k: abs(em_val - v) for k, v in self.em_aff_values.items()}
+        # min_val = min(diffs.values())
+        # cands = [k for k, v in diffs.items() if v == min_val]
+        # em_v = random.choice(cands).copy()
         # self.sv |= em_v
         self.sv |= bv
 class Matrix:
@@ -86,7 +86,7 @@ class Matrix:
         self.e = dict()
         self.adc_max = 500#-300---------------------------------------------------------------------------------------------------HP
         self.adc_min = round(float(self.adc_max - 1) * 0.85)#---------------------------------------------------------------------HP
-        self.fbv_offset = ((len(self.po.s.unavail_idxs) + 100) * self.M)
+        self.fbv_offset = ((len(self.po.s.unavail_idxs) + 10) * self.M)
         self.em = self.em_prev = self.em_error = self.zero_rate = self.mto_rate = 0
         self.em_sp = 0.10#--------------------------------------------------------------------------------------------------------HP
     def update(self):
@@ -144,9 +144,9 @@ class Matrix:
                 cli = (a // self.M)
                 # self.ov.add(cli)
             self.mav = mav_update.copy()
-            # for v in self.fbv_conf_v.values(): self.mav.add(v)
-            # self.process_epi_for()       
-            for a in self.e.keys(): self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
+            # self.process_epi_for()
+            ts = (set(self.e.keys()) - self.mav)
+            for a in ts: self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
             self.e = {k:v for k, v in self.e.items() if v}
             self.update_mpv()
             agent_str = f"\tAG: {self.po.s.idx_delta}" if (self.ffi == -1) else ""
@@ -159,7 +159,7 @@ class Matrix:
         for a in self.e.keys():
             su = len(set(self.e[a].keys()) ^ self.mav)
             cli = (a // self.M)
-            if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a].keys())): su += 30#----????????????????????????????
+            if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a].keys())): su += 3#----?????????------HP
             heap.append((su, random.randrange(10000), a))
         heapq.heapify(heap)
         if self.ffi == -1:
@@ -167,14 +167,15 @@ class Matrix:
             # num_set_pred = self.po.s.sv_card
             while heap and (len(self.mpv) < num_set_pred): self.mpv.add(heapq.heappop(heap)[2])
         else:
-            num_set_pred = (self.po.s.sv_card - 3)
-            while heap and (len(self.mpv) < num_set_pred): self.mpv.add(heapq.heappop(heap)[2])
-            """
-            thresh = 10#----------------------------------------------------------------------------------------------HP
+            # thresh = 10#------------------------------------------------------------------------------------------------HP
+            thresh_pct = 0.95#-------------------------------------------------------------------------------------------HP
             while heap:
                 d, r, k = heapq.heappop(heap)
-                if (d < thresh): self.mpv.add(k)
-            """
+                norm = float(len(self.mav) + len(self.e[k].keys()) + 3)
+                rv = round(1000000.0 * (float(d) / norm))
+                if rv < 975000: self.mpv.add(k)
+                # thresh = round(thresh_pct * max_diff)
+                # if d <= thresh: self.mpv.add(k)
     def process_epi_for(self):
         pass
         # if self.ffi == -1:
