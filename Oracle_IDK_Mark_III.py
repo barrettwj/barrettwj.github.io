@@ -6,22 +6,17 @@ class Oracle:
         self.M = 49#-49-----------------------------------------------------------------------------------------------------------HP
         self.s = Sensorium(self)
         self.m = [Matrix(self, a) for a in range(self.H)]
-        # self.em_global = 0
     def update(self):
         while True:
             self.s.update()
-            # self.em_global = 0
-            for a in self.m:
-                a.update()
-                # self.em_global += a.em
-            # self.em_global /= float(len(self.m))
+            for a in self.m: a.update()
 class Sensorium:
     def __init__(self, po_in):
         self.po = po_in
         self.M = self.po.M
         #______________________________________________________________EM INTEROCEPTION_______________________________________________
         em_int_card = 3#------------------------------------------------------------------------------------------------------------HP
-        em_int_dim = 17#-should be odd!!!-------------------------------------------------------------------------------------------HP
+        em_int_dim = 5#-should be odd!!!-------------------------------------------------------------------------------------------HP
         start_idx = -round((em_int_dim - 1) / 2)
         em_int_v = {(start_idx + a) for a in range(em_int_dim)}
         em_int_num_values = (em_int_dim - em_int_card + 1)
@@ -53,7 +48,7 @@ class Sensorium:
         self.ts_idx = self.idx_delta = 0
         beh_mag = (len(self.ts) - 2)#---------------------------------------------------------------------------------------------HP
         self.beh_set = {(beh_mag - a) for a in range((beh_mag * 2) + 1)}
-        self.beh_map_max_size = ts_len#-----------------------------------------------------------------------------------------------HP
+        self.beh_map_max_size = ts_len#------------------------------------------------------------------------------------------HP
         self.eff_ch_A_card = round(float(eff_ch_A_dim) / float(self.beh_map_max_size + 1))
         tv = self.eff_ch_A_v.copy()
         self.beh_map = dict()
@@ -90,7 +85,7 @@ class Matrix:
         self.ov = self.mav = self.mpv = self.fbv = self.exc_mpv = set()
         self.e = dict()
         self.adc_max = 500#-300---------------------------------------------------------------------------------------------------HP
-        self.adc_min = round(float(self.adc_max - 1) * 0.85)#----------------------------------------------------------------------HP
+        self.adc_min = round(float(self.adc_max - 1) * 0.85)#---------------------------------------------------------------------HP
         self.fbv_offset = ((len(self.po.s.unavail_idxs) + 100) * self.M)
         self.em = self.em_prev = self.em_error = self.zero_rate = self.mto_rate = 0
         self.em_sp = 0.10#--------------------------------------------------------------------------------------------------------HP
@@ -128,13 +123,15 @@ class Matrix:
                     #"""
                     # wi = random.choice(list(ci))
                     self.e[wi] = {b:new_adc for b in self.mav}
+                    if a in self.fbv_conf_v.keys(): self.e[wi][self.fbv_conf_v[a]] = new_adc
                 else:
                     wi = random.choice(list(pv))
+                    for b in self.mav: self.e[wi][b] = new_adc
                     if pv_len > 1:
                         self.ov.add(a)
                         self.em += (float(pv_len - 1) / float(self.M - 1))
                         self.mto_rate += 1.0
-                    for b in self.mav: self.e[wi][b] = new_adc
+                        if a in self.fbv_conf_v.keys(): self.e[wi][self.fbv_conf_v[a]] = new_adc
                 mav_update.add(wi)
             norm = float(max(1, len(ci_dict)))
             self.em /= norm
@@ -145,9 +142,9 @@ class Matrix:
             self.exc_mpv = (self.mpv - mpv_ack)
             for a in self.exc_mpv:
                 cli = (a // self.M)
-                self.ov.add(cli)
+                # self.ov.add(cli)
             self.mav = mav_update.copy()
-            for v in self.fbv_conf_v.values(): self.mav.add(v)
+            # for v in self.fbv_conf_v.values(): self.mav.add(v)
             # self.process_epi_for()       
             for a in self.e.keys(): self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
             self.e = {k:v for k, v in self.e.items() if v}
@@ -158,22 +155,31 @@ class Matrix:
                   f"\t   MVP: {len(self.mpv)}" + agent_str)
     def update_mpv(self):
         self.mpv = set()
-        heap = [(len(set(self.e[a].keys()) ^ self.mav), random.randrange(10000), a) for a in self.e.keys()]
+        heap = []
+        for a in self.e.keys():
+            su = len(set(self.e[a].keys()) ^ self.mav)
+            cli = (a // self.M)
+            if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a].keys())): su += 30#----????????????????????????????
+            heap.append((su, random.randrange(10000), a))
         heapq.heapify(heap)
         if self.ffi == -1:
             num_set_pred = (self.po.s.sv_card - 3)
             # num_set_pred = self.po.s.sv_card
             while heap and (len(self.mpv) < num_set_pred): self.mpv.add(heapq.heappop(heap)[2])
         else:
-            thresh = 15#-------------------------------------------------------------------------------------------------HP
+            num_set_pred = (self.po.s.sv_card - 3)
+            while heap and (len(self.mpv) < num_set_pred): self.mpv.add(heapq.heappop(heap)[2])
+            """
+            thresh = 10#----------------------------------------------------------------------------------------------HP
             while heap:
                 d, r, k = heapq.heappop(heap)
                 if (d < thresh): self.mpv.add(k)
+            """
     def process_epi_for(self):
         pass
         # if self.ffi == -1:
         #     em_sp_abs_error = float(abs(self.em - self.em_sp))
-        #     sc = 200.0#------------------------------------------------------------------------------------------------HP
+        #     sc = 200.0#---------------------------------------------------------------------------------------------HP
         #     sc_val = round(em_sp_abs_error * sc)
             # ts = (self.mpv & self.po.s.eff_ch_A_v_exp)
             # for a in ts:
