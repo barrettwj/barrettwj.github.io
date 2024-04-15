@@ -34,7 +34,7 @@ class Sensorium:
         eff_ch_A_dim = 297#-should be odd!!!----------------------------------------------------------------------------------------HP
         start_idx = -round((eff_ch_A_dim - 1) / 2)
         self.eff_ch_A_v = {(start_idx + a) for a in range(eff_ch_A_dim)}
-        while (len(self.eff_ch_A_v & self.unavail_idxs) > 0): self.eff_ch_A_v = {(a - 1) for a in self.eff_ch_A_v}
+        while (len(self.eff_ch_A_v & self.unavail_idxs) > 0): self.eff_ch_A_v = {(a + 1) for a in self.eff_ch_A_v}
         self.unavail_idxs |= self.eff_ch_A_v
         self.sv = set()
         ts_len = 5#---------------------------------------------------------------------------------------------------------------HP
@@ -82,7 +82,7 @@ class Matrix:
         self.ffi = (mi_in - 1)
         self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
         self.M = self.po.M
-        self.ov = self.mav = self.mpv = self.fbv = self.exc_mpv = set()
+        self.cv = self.ov = self.mav = self.mpv = self.fbv = self.exc_mpv = set()
         self.e = dict()
         self.adc_max = 500#-300---------------------------------------------------------------------------------------------------HP
         self.adc_min = round(float(self.adc_max - 1) * 0.85)#---------------------------------------------------------------------HP
@@ -123,7 +123,6 @@ class Matrix:
                     #"""
                     # wi = random.choice(list(ci))
                     self.e[wi] = {b:new_adc for b in self.mav}
-                    if a in self.fbv_conf_v.keys(): self.e[wi][self.fbv_conf_v[a]] = new_adc
                 else:
                     wi = random.choice(list(pv))
                     for b in self.mav: self.e[wi][b] = new_adc
@@ -131,7 +130,6 @@ class Matrix:
                         self.ov.add(a)
                         self.em += (float(pv_len - 1) / float(self.M - 1))
                         self.mto_rate += 1.0
-                        if a in self.fbv_conf_v.keys(): self.e[wi][self.fbv_conf_v[a]] = new_adc
                 mav_update.add(wi)
             norm = float(max(1, len(ci_dict)))
             self.em /= norm
@@ -142,11 +140,10 @@ class Matrix:
             self.exc_mpv = (self.mpv - mpv_ack)
             for a in self.exc_mpv:
                 cli = (a // self.M)
-                # self.ov.add(cli)
-            self.mav = mav_update.copy()
+                self.ov.add(cli)
+            self.mav = (mav_update | set(self.fbv_conf_v.values()))
             # self.process_epi_for()
-            ts = (set(self.e.keys()) - self.mav)
-            for a in ts: self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
+            for a in self.e.keys(): self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
             self.e = {k:v for k, v in self.e.items() if v}
             self.update_mpv()
             agent_str = f"\tAG: {self.po.s.idx_delta}" if (self.ffi == -1) else ""
@@ -155,27 +152,11 @@ class Matrix:
                   f"\t   MVP: {len(self.mpv)}" + agent_str)
     def update_mpv(self):
         self.mpv = set()
-        heap = []
-        for a in self.e.keys():
-            su = len(set(self.e[a].keys()) ^ self.mav)
-            cli = (a // self.M)
-            if ((cli in self.fbv_conf_v.keys()) and (self.fbv_conf_v[cli] in self.e[a].keys())): su += 3#----?????????------HP
-            heap.append((su, random.randrange(10000), a))
+        heap = [(len(set(self.e[a].keys()) ^ self.mav), random.randrange(10000), a) for a in self.e.keys()]
         heapq.heapify(heap)
-        if self.ffi == -1:
-            num_set_pred = (self.po.s.sv_card - 3)
-            # num_set_pred = self.po.s.sv_card
-            while heap and (len(self.mpv) < num_set_pred): self.mpv.add(heapq.heappop(heap)[2])
-        else:
-            # thresh = 10#------------------------------------------------------------------------------------------------HP
-            thresh_pct = 0.95#-------------------------------------------------------------------------------------------HP
-            while heap:
-                d, r, k = heapq.heappop(heap)
-                norm = float(len(self.mav) + len(self.e[k].keys()) + 3)
-                rv = round(1000000.0 * (float(d) / norm))
-                if rv < 975000: self.mpv.add(k)
-                # thresh = round(thresh_pct * max_diff)
-                # if d <= thresh: self.mpv.add(k)
+        while heap:
+            d, r, k = heapq.heappop(heap)
+            if d < 500: self.mpv.add(k)
     def process_epi_for(self):
         pass
         # if self.ffi == -1:
