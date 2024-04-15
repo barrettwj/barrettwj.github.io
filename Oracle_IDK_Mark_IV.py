@@ -80,10 +80,13 @@ class Matrix:
         self.pev = self.pv = self.cv = set()
         start_idx = -round((self.po.K - 1) / 2)
         self.cv_dim = 3#----------------------------------------------------------------------------------------------------------HP
-        self.e = {(start_idx + a):{(start_idx + b):0 for b in range((self.po.K * self.cv_dim))} for a in range(self.po.K)}
+        cv_mag = (self.po.K * self.cv_dim)
+        self.e = {(start_idx + a):{(start_idx + b):0 for b in range(cv_mag)} for a in range(self.po.K)}
         self.em = self.em_prev = self.em_error = 0
-        self.w_max = 67#----------------------------------------------------------------------------------------------------------HP
+        self.w_max = 167#----------------------------------------------------------------------------------------------------------HP
         self.w_min = -(self.w_max - 1)
+        self.conf_max = (cv_mag * self.w_max)
+        self.conf_min = (cv_mag * self.w_min)
         self.em_sp = 0.10#--------------------------------------------------------------------------------------------------------HP
     def update(self):
         iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].pev.copy()
@@ -92,10 +95,13 @@ class Matrix:
         failed_pev = (iv - self.pv)
         self.em = (len(self.pev) / max(1, (len(iv) + len(self.pv))))
         # self.process_EPIFOR()
-        wd = 1#----------------------------------------------------------------------------------------------------------------HP
-        for a in self.cv:
-            for b in false_pev: self.e[b][a] = max(self.w_min, (self.e[b][a] - wd))
-            for b in failed_pev: self.e[b][a] = min(self.w_max, (self.e[b][a] + wd))
+        wd_sc = 10#---------------------------------------------------------------------------------------------------------------HP
+        for a in false_pev:
+            wd = round((1.0 - ((sum(self.e[a][b] for b in self.cv) - 1) / (self.conf_max - 1))) * wd_sc)
+            for b in self.cv: self.e[a][b] = max(self.w_min, (self.e[a][b] - wd))
+        for a in failed_pev:
+            wd = round((1.0 - ((sum(self.e[a][b] for b in self.cv) - 1) / (self.conf_max - 1))) * wd_sc)
+            for b in self.cv: self.e[a][b] = min(self.w_max, (self.e[a][b] + wd))
         fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != -1) else set()#----------------------------------------------------HP
         # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != -1) else self.po.m[0].pv.copy()#-----------------------------------HP
         if self.cv_dim == 3: self.cv = (iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
