@@ -79,32 +79,30 @@ class Matrix:
         self.fbi = (mi_in + 1) if (mi_in < (self.po.H - 1)) else -1
         self.pev = self.pv = self.cv = set()
         start_idx = -round((self.po.K - 1) / 2)
-        ei = {(start_idx + a) for a in range(self.po.K)}
         self.cv_dim = 3#----------------------------------------------------------------------------------------------------------HP
-        cd = {(start_idx + a):0 for a in range((self.po.K * self.cv_dim))}
-        self.e = {a:cd.copy() for a in ei}
+        self.e = {(start_idx + a):{(start_idx + b):0 for b in range((self.po.K * self.cv_dim))} for a in range(self.po.K)}
         self.em = self.em_prev = self.em_error = 0
         self.w_max = 67#----------------------------------------------------------------------------------------------------------HP
         self.w_min = -(self.w_max - 1)
         self.em_sp = 0.10#--------------------------------------------------------------------------------------------------------HP
     def update(self):
-            iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].pev.copy()
-            self.pev = (iv ^ self.pv)
-            false_pev = (self.pv - iv)
-            failed_pev = (iv - self.pv)
-            self.em = (len(self.pev) / max(1, (len(iv) + len(self.pv))))
-            # self.process_EPIFOR()
-            wd = 1#----------------------------------------------------------------------------------------------------------------HP
-            for a in self.cv:
-                for b in false_pev: self.e[b][a] = max(self.w_min, (self.e[b][a] - wd))
-                for b in failed_pev: self.e[b][a] = min(self.w_max, (self.e[b][a] + wd))
-            fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != -1) else set()#----------------------------------------------------HP
-            # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != -1) else self.po.m[0].pv.copy()#-----------------------------------HP
-            if self.cv_dim == 3: self.cv = (iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
-            if self.cv_dim == 2: self.cv = (iv | {(self.po.K + a) for a in fbv})
-            self.pv = {a for a in self.e.keys() if sum(self.e[a][b] for b in self.cv) > 0}
-            agent_str = f"\tAG: {self.po.s.idx_delta}" if (self.ffi == -1) else ""
-            print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tIV: {len(iv)}\tPV: {len(self.pv)}" + agent_str)
+        iv = self.po.s.sv.copy() if self.ffi == -1 else self.po.m[self.ffi].pev.copy()
+        self.pev = (iv ^ self.pv)
+        false_pev = (self.pv - iv)
+        failed_pev = (iv - self.pv)
+        self.em = (len(self.pev) / max(1, (len(iv) + len(self.pv))))
+        # self.process_EPIFOR()
+        wd = 1#----------------------------------------------------------------------------------------------------------------HP
+        for a in self.cv:
+            for b in false_pev: self.e[b][a] = max(self.w_min, (self.e[b][a] - wd))
+            for b in failed_pev: self.e[b][a] = min(self.w_max, (self.e[b][a] + wd))
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != -1) else set()#----------------------------------------------------HP
+        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != -1) else self.po.m[0].pv.copy()#-----------------------------------HP
+        if self.cv_dim == 3: self.cv = (iv | {(self.po.K + a) for a in self.pv} | {((self.po.K * 2) + a) for a in fbv})
+        if self.cv_dim == 2: self.cv = (iv | {(self.po.K + a) for a in fbv})
+        self.pv = {a for a in self.e.keys() if sum(self.e[a][b] for b in self.cv) > 0}
+        agent_str = f"\tAG: {self.po.s.idx_delta}" if (self.ffi == -1) else ""
+        print(f"M{self.ffi + 1}  EM: {(self.em * 100.0):.2f}%\tIV: {len(iv)}\tPV: {len(self.pv)}" + agent_str)
     def process_EPIFOR(self):
         if self.ffi == -1:
             em_sp_abs_error = abs(self.em - self.em_sp)
