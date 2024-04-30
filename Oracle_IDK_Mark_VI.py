@@ -3,14 +3,15 @@ import heapq
 class Oracle:
     def __init__(self):
         self.H = 3
-        self.M = 47
+        self.M = 53
         self.K = 507
-        self.adc_max = 77
+        self.adc_max = 37
         self.sparsity = (1.0 / self.M)
+        self.channels = []
         self.iv_mask = {a for a in range(self.K)}
         self.bv_mask = {(self.K + a) for a in range(self.K)}
         self.em_mask = {((self.K * 2) + a) for a in range(self.K)}
-        em_val_card = 13
+        em_val_card = 3
         em_num_vals = (self.K - em_val_card + 1)
         em_interval = (1.0 / (em_num_vals - 1))
         em_start_idx = (self.K * 2)
@@ -19,28 +20,41 @@ class Oracle:
         self.fbv_offset = (len(self.C) * self.M)
         tsp_dim_pct = 0.15
         tsp_dim = round(self.K * tsp_dim_pct)
-        # ts_dim = round(self.K / (tsp_dim + 1))
-        ts_dim = 25
-        # self.iv_map = dict()
-        # tv = self.iv_mask.copy()
-        # for a in range(ts_dim):
-        #     ts = set(random.sample(list(tv), tsp_dim))
-        #     tv -= ts
-        #     self.iv_map[a] = frozenset(ts.copy())
-        # self.bv_map = dict()
-        # tv = self.bv_mask.copy()
-        # for a in range(ts_dim):
-        #     ts = set(random.sample(list(tv), tsp_dim))
-        #     tv -= ts
-        #     self.bv_map[frozenset(ts.copy())] = a
-        self.iv_map = {a:frozenset(set(random.sample(list(self.iv_mask), tsp_dim))) for a in range(ts_dim)}
-        self.bv_map = {frozenset(set(random.sample(list(self.bv_mask), tsp_dim))):a for a in range(ts_dim)}
+        ts_dim = round(self.K / (tsp_dim + 2))
+        self.iv_map = dict()
+        tv = self.iv_mask.copy()
+        for a in range(ts_dim):
+            ts = set(random.sample(list(tv), tsp_dim))
+            tv -= ts
+            self.iv_map[a] = frozenset(ts.copy())
+        self.bv_map = dict()
+        tv = self.bv_mask.copy()
+        for a in range(ts_dim):
+            ts = set(random.sample(list(tv), tsp_dim))
+            tv -= ts
+            self.bv_map[frozenset(ts.copy())] = a
+        # ts_dim = 25
+        # self.iv_map = {a:frozenset(set(random.sample(list(self.iv_mask), tsp_dim))) for a in range(ts_dim)}
+        # self.bv_map = {frozenset(set(random.sample(list(self.bv_mask), tsp_dim))):a for a in range(ts_dim)}
         self.m = [Matrix(self, a) for a in range(self.H)]
         self.cy = 0
     def update(self):
         while True:
             for a in self.m: a.update()
             self.cy += 1
+class Channel:
+    def __init__(self, po_in, id_in, dim_in, card_in):
+        self.po = po_in
+        self.id = id_in
+        self.dim = dim_in
+        self.card = card_in
+        self.rv = set()
+        unavailable_idcs = set()
+        for a in self.po.channels: unavailable_idcs += a.rv
+    def get_val(self, vec_in):
+        pass
+    def get_vec(self, val_in):
+        pass
 class Matrix:
     def __init__(self, po_in, mi_in):
         self.po = po_in
@@ -76,7 +90,7 @@ class Matrix:
         ################################################################################################################
         if self.ffi == -1:
             bv = ({(a // self.po.M) for a in self.pv} & self.po.bv_mask)
-            if (round(self.em_delta_abs * 1000000.0) <= random.randrange(10)):#----------------------------------------HP
+            if (round(self.em_delta_abs * 1000000.0) <= random.randrange(100)):#----------------------------------------HP
                 bv_idx = random.choice(list(self.po.bv_map.values()))
             else:
                 heap = [(len(k ^ bv), random.randrange(10000), v) for k, v in self.po.bv_map.items()]
@@ -86,9 +100,9 @@ class Matrix:
             for k, v in self.po.bv_map.items():
                 if v == bv_idx: iv |= k
             # iv |= bv
-            heap = [(abs(k - self.em_delta_abs), random.randrange(10000), v) for k, v in self.po.em_map.items()]
-            heapq.heapify(heap)
-            iv |= heapq.heappop(heap)[2].copy()
+            # heap = [(abs(k - self.em_delta_abs), random.randrange(10000), v) for k, v in self.po.em_map.items()]
+            # heapq.heapify(heap)
+            # iv |= heapq.heappop(heap)[2].copy()
         else: iv = self.po.m[self.ffi].ov.copy()
         #################################################################################################################
         self.av = set()
@@ -110,6 +124,7 @@ class Matrix:
         ################################################################################################################
         for a in self.e.keys(): self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
         self.e = {k:v for k, v in self.e.items() if v}
-        print(f"M: {self.ffi + 1}\tEM: {self.em:.4f}\tEMA: {self.em_delta_abs:.4f}\tES: {len(self.e.keys())}\tPV: {len(self.pv)}")
+        print(f"M: {(self.ffi + 1)}  EM: {self.em:.4f}  EMA: {round(self.em_delta_abs * 1000000.0):9d}" +
+        f"  ES: {len(self.e.keys()):6d}  PV: {len(self.pv):4d}")
 oracle = Oracle()
 oracle.update()
