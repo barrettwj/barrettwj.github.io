@@ -2,17 +2,17 @@ import random
 import heapq
 class Oracle:
     def __init__(self):
-        self.H = 6
-        self.M = 49
-        self.K = 100
-        self.adc_max = 5000
+        self.H = 7
+        self.M = 47
+        self.K = 103
+        self.adc_max = 5003
         self.iv_mask = {a for a in range(self.K)}
         self.bv_mask = {(self.K + a) for a in range(self.K)}
         self.C = (self.iv_mask | self.bv_mask)
         self.fbv_offset = (len(self.C) * self.M)
         tsp_dim_pct = 0.30
         tsp_dim = round(self.K * tsp_dim_pct)
-        ts_dim = 5
+        ts_dim = 17
         self.iv_map = {a:frozenset(random.sample(list(self.iv_mask), tsp_dim)) for a in range(ts_dim)}
         self.bv_map = {frozenset(random.sample(list(self.bv_mask), tsp_dim)):a for a in range(ts_dim)}
         self.m = [Matrix(self, a) for a in range(self.H)]
@@ -28,10 +28,10 @@ class Matrix:
         self.e = dict()
         self.em = 0
     def update(self):
-        fbv = {(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv}
-        # fbv = {(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else set()
+        # fbv = {(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv}
+        fbv = {(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else set()
         self.cv = (self.av | fbv)
-        self.inference()
+        self.infer()
         self.eval()
         for a in self.e.keys(): self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
         self.e = {k:v for k, v in self.e.items() if v}
@@ -58,7 +58,7 @@ class Matrix:
                 for b in self.cv: self.e[wi][b] = self.po.adc_max
             else: self.e[wi] = {b:self.po.adc_max for b in self.cv}
             self.av.add(wi)
-    def inference(self):
+    def infer(self):
         self.pv = set()
         self.ov = set()
         self.em = 0
