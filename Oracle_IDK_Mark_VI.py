@@ -8,7 +8,8 @@ class Oracle:
         self.adc_max = 17
         self.iv_mask = {a for a in range(self.K)}
         self.bv_mask = {(self.K + a) for a in range(self.K)}
-        self.C = (self.iv_mask | self.bv_mask)
+        self.em_mask = {((self.K * 2) + a) for a in range(self.K)}
+        self.C = (self.iv_mask | self.bv_mask | self.em_mask)
         self.fbv_offset = (len(self.C) * self.M)
         tsp_dim_pct = 0.30
         tsp_dim = round(self.K * tsp_dim_pct)
@@ -60,23 +61,18 @@ class Matrix:
     def infer(self):
         self.pv = set()
         self.ov = set()
-        self.em = 0
-        em_ct = 0
-        ks = set(self.e.keys())
-        for a in self.po.C:
-            ciu = (ks & set(range((a * self.po.M), ((a + 1) * self.po.M))))
-            if len(ciu) > 0:
-                td = {b:len(set(self.e[b].keys()) ^ self.cv) for b in ciu}
-                min_val = min(td.values())
-                rv = [k for k, v in td.items() if v == min_val]
-                le = len(rv)
-                if le > 1:
-                    self.em += ((le - 1) / (self.po.M - 1))
-                    em_ct += 1
-                    self.ov.add(a)
-                    ni = random.choice(rv)
-                else: ni = rv[0]
-                self.pv.add(ni)
-        self.em /= max(1, em_ct)
+        vi = dict()
+        heap = [(len(set(self.e[a].keys()) ^ self.cv), random.randrange(10000), a) for a in self.e.keys()]
+        heapq.heapify(heap)
+        while heap:
+            a = heapq.heappop(heap)[2]
+            cli = (a // self.po.M)
+            if cli in vi.keys():
+                self.ov.add(cli)
+                vi[cli] += 1
+            else:
+                self.pv.add(a)
+                vi[cli] = 1
+        self.em = (sum(((v - 1) / (self.po.M - 1)) for v in vi.values()) / max(1, len(vi.values())))
 oracle = Oracle()
 oracle.update()
