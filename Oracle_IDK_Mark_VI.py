@@ -4,8 +4,8 @@ class Oracle:
     def __init__(self):
         self.H = 6
         self.M = 49
-        self.K = 500
-        self.adc_max = 10000
+        self.K = 100
+        self.adc_max = 5000
         self.iv_mask = {a for a in range(self.K)}
         self.bv_mask = {(self.K + a) for a in range(self.K)}
         self.C = (self.iv_mask | self.bv_mask)
@@ -75,8 +75,8 @@ class Matrix:
                     self.ov.add(a)
                 ni = random.choice(cands)
             else:
-                self.ov.add(a)
                 self.em += 1.0
+                self.ov.add(a)
                 ni = random.choice(list(ci))
             self.pv.add(ni)
         self.em /= len(self.po.C)
