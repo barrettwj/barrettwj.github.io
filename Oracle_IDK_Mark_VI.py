@@ -3,22 +3,24 @@ import heapq
 class Oracle:
     def __init__(self):
         self.H = 7
-        self.M = 47
-        self.K = 103
-        self.adc_max = 5003
+        self.M = 37
+        self.K = 507
+        self.adc_max = 17
         self.iv_mask = {a for a in range(self.K)}
         self.bv_mask = {(self.K + a) for a in range(self.K)}
         self.C = (self.iv_mask | self.bv_mask)
         self.fbv_offset = (len(self.C) * self.M)
         tsp_dim_pct = 0.30
         tsp_dim = round(self.K * tsp_dim_pct)
-        ts_dim = 17
+        ts_dim = 43
         self.iv_map = {a:frozenset(random.sample(list(self.iv_mask), tsp_dim)) for a in range(ts_dim)}
         self.bv_map = {frozenset(random.sample(list(self.bv_mask), tsp_dim)):a for a in range(ts_dim)}
         self.m = [Matrix(self, a) for a in range(self.H)]
+        self.cy = 0
     def update(self):
         while True:
             for a in self.m: a.update()
+            self.cy += 1
 class Matrix:
     def __init__(self, po_in, mi_in):
         self.po = po_in
@@ -43,11 +45,8 @@ class Matrix:
             heapq.heapify(heap)
             bv_idx = heapq.heappop(heap)[2]
             iv = self.po.iv_map[bv_idx].copy()
-            # iv |= bv
             for k, v in self.po.bv_map.items():
-                if v == bv_idx:
-                    iv |= k
-                    break
+                if v == bv_idx: iv |= k
         else: iv = self.po.m[self.ffi].ov.copy()
         self.av = set()
         for a in iv:
@@ -62,23 +61,22 @@ class Matrix:
         self.pv = set()
         self.ov = set()
         self.em = 0
+        em_ct = 0
+        ks = set(self.e.keys())
         for a in self.po.C:
-            ci = set(range((a * self.po.M), ((a + 1) * self.po.M)))
-            ciu = (set(self.e.keys()) & ci)
+            ciu = (ks & set(range((a * self.po.M), ((a + 1) * self.po.M))))
             if len(ciu) > 0:
                 td = {b:len(set(self.e[b].keys()) ^ self.cv) for b in ciu}
                 min_val = min(td.values())
-                cands = [k for k, v in td.items() if v == min_val]
-                le = len(cands)
+                rv = [k for k, v in td.items() if v == min_val]
+                le = len(rv)
                 if le > 1:
                     self.em += ((le - 1) / (self.po.M - 1))
+                    em_ct += 1
                     self.ov.add(a)
-                ni = random.choice(cands)
-            else:
-                self.em += 1.0
-                self.ov.add(a)
-                ni = random.choice(list(ci))
-            self.pv.add(ni)
-        self.em /= len(self.po.C)
+                    ni = random.choice(rv)
+                else: ni = rv[0]
+                self.pv.add(ni)
+        self.em /= max(1, em_ct)
 oracle = Oracle()
 oracle.update()
