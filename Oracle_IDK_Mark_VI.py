@@ -2,13 +2,14 @@ import random
 import heapq
 class Oracle:
     def __init__(self):
-        self.H = 3
-        self.M = 53#-53
-        self.K = 267
-        self.adc_max = 137
+        self.H = 3#-----------------------------------------------------------------------------------------HP
+        self.M = 49#-53-------------------------------------------------------------------------------------HP
+        self.K = 167#---------------------------------------------------------------------------------------HP
+        self.min_conns = 1#---------------------------------------------------------------------------------HP
+        self.adc_max = 37#----------------------------------------------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.80)
         #######################################################################################################
-        tsp_dim_pct = 0.20
+        tsp_dim_pct = 0.20#---------------------------------------------------------------------------------HP
         tsp_dim = round(self.K * tsp_dim_pct)
         ts_dim = round(self.K / (tsp_dim + 2))
         self.iv_mask = {a for a in range(self.K)}
@@ -33,7 +34,7 @@ class Oracle:
         ###########################################################################################################
         em_start_idx = (self.K * 2)
         self.em_mask = {(em_start_idx + a) for a in range(self.K)}
-        em_val_card = 7#-musn't be too small!!!!--------------------------------------------------------------------------HP
+        em_val_card = 7#-musn't be too small!!!!---------------------------------------------------------------HP
         em_num_vals = (self.K - em_val_card + 1)
         em_interval = (1.0 / (em_num_vals - 1))
         self.em_map = {(a * em_interval):frozenset({(em_start_idx + a + b) for b in range(em_val_card)}) for a in range(em_num_vals)}
@@ -55,13 +56,12 @@ class Matrix:
         self.e = dict()
         self.em = self.em_prev = self.em_delta_abs = self.ev = 0
         self.low_ad = False
-        self.min_conns = 1#---------------------------------------------------------------------------------------------HP
         self.em_el_mask = set()
         for a in self.po.em_mask: self.em_el_mask |= set(range((a * self.po.M), ((a + 1) * self.po.M)))
     def update(self):
         """
         if self.ffi == -1:
-            delta = 10#--------------------------------------------------------------------------------------------------HP
+            delta = 10#-------------------------------------------------------------------------------------HP
             if not self.low_ad:
                 inc_val = round(-delta + (self.em_delta_abs * delta * 2.0))
                 for a in self.pv:
@@ -69,27 +69,26 @@ class Matrix:
                         # tv = (set(self.e[a]) & self.cv & self.em_el_mask)
                         tv = (set(self.e[a]) & self.cv)
                         for b in tv: self.e[a][b] = max(0, (self.e[a][b] + inc_val))
-        ################################################################################################################
+        ###########################################################################################################
         """
         # fbv_conf = {(a // self.po.M):(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv}
         fbv_conf = {(a // self.po.M):(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
         self.ov = set()
-        ################################################################################################################
-        fb_val = 0.20#---------------------------------------------------------------------------------------------------HP
+        ###########################################################################################################
+        fb_val = 0.20#-------------------------------------------------------------------------------------------HP
         acts = dict()
         for a in self.e:
             act = (len(set(self.e[a]) ^ self.av) / max(1, (len(self.e[a]) + len(self.av))))
             if (a // self.po.M) in fbv_conf: act = min(1, (act + fb_val))
             # if (a // self.po.M) in fbv_conf: act = (act + fb_val)
             acts[a] = act
-        mean = variance = sigma = thresh = 0
+        thresh = 0
         le = len(acts)
         if le > 0:
             mean = (sum(acts.values()) / le)
             variance = (sum(((v - mean) ** 2) for v in acts.values()) / le)
-            sigma = (variance ** 0.5)
-            mult = 3#-musn't be too large!!!-----------------------------------------------------------------------------HP
-            thresh = (mean - (sigma * mult))
+            precision = 3#-musn't be too large!!!--------------------------------------------------------------------HP
+            thresh = (mean - ((variance ** 0.5) * precision))
         self.pv = set()
         vi = dict()
         while acts:
@@ -123,15 +122,15 @@ class Matrix:
             bv = ({(a // self.po.M) for a in self.pv} & self.po.bv_mask)
             heap = [(len(k ^ bv), random.randrange(100000), v, k) for k, v in self.po.bv_map.items()]
             heapq.heapify(heap)
-            d, r, bv_idx, bv_vec = heapq.heappop(heap)
+            d, r, bv_idx, bv_ppcv = heapq.heappop(heap)
             # print(d)
             iv = {a for a in self.po.iv_map[bv_idx]}
-            iv |= bv_vec
+            iv |= bv_ppcv
             ########################################################
             self.low_ad = False
-            # if (round(self.em_delta_abs * 1000000.0) <= random.randrange(500000)):#---------------------------------------------HP
+            # if (round(self.em_delta_abs * 1000000.0) <= random.randrange(500000)):#------------------------------------HP
             if False:
-                num = round(len(self.po.iv_mask) * 0.10)#----------------------------------------------------------------------HP
+                num = round(len(self.po.iv_mask) * 0.10)#----------------------------------------------------------------HP
                 if num > 0:
                     self.low_ad = True
                     rv = random.sample(list(self.po.iv_mask), num)
@@ -147,9 +146,11 @@ class Matrix:
         zr = 0
         cv = self.av.copy()
         self.av = set()
+        pv_ack = set()
         for a in iv:
             ci = set(range((a * self.po.M), ((a + 1) * self.po.M)))
             ovl = (ci & self.pv)
+            pv_ack |= ovl
             if len(ovl) == 0:
                 self.ov.add(a)
                 self.em += 1
@@ -159,7 +160,7 @@ class Matrix:
                     cnav = (ci & set(self.e))
                     for b in cnav:
                         self.e[b] = {k:(v - 1) for k, v in self.e[b].items() if (v > 0)}
-                        if len(self.e[b]) < self.min_conns:
+                        if len(self.e[b]) < self.po.min_conns:
                             del self.e[b]
                             break
                     cav = (ci - set(self.e))
@@ -175,15 +176,19 @@ class Matrix:
         zr /= max(1, len(iv))
         em_delta = (self.em - self.em_prev)
         self.em_delta_abs = abs(self.em - self.em_prev)
+        pv_ex = (self.pv - pv_ack)
+        for a in pv_ex:
+            self.ov.add((a // self.po.M))
+            self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if ((k in cv) and (v > 0))}
         ################################################################################################################
         tl = list(self.e)
         for a in tl:
-            # self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}#-----probably unnecessary!!!
-            if len(self.e[a]) < self.min_conns: del self.e[a]
+            # self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}#-----maybe unnecessary???!!!
+            if len(self.e[a]) < self.po.min_conns: del self.e[a]
         ################################################################################################################
         bv_string = f"  BV: {bv_idx:2d}" if bv_idx != -1 else ""
         lad_string = "  LAD" if self.low_ad else ""
         print(f"M: {(self.ffi + 1)}  EM: {self.em:.2f}  EMD: {round(em_delta * 1000000.0):8d}" +
-        f"  ES: {len(self.e):6d}  PV: {len(self.pv):4d}  ZR: {zr:.2f}  MR: {mr:.2f}" + bv_string + lad_string)
+        f"  ES: {len(self.e):6d}  PV: {len(self.pv):4d}  ZR: {zr:.2f}  MR: {mr:.2f}  PVEX: {len(pv_ex):4d}" + bv_string + lad_string)
 oracle = Oracle()
 oracle.update()
