@@ -4,8 +4,8 @@ class Oracle:
     def __init__(self):
         self.H = 3
         self.M = 53#-53
-        self.K = 67
-        self.adc_max = 367
+        self.K = 267
+        self.adc_max = 137
         self.adc_min = round(self.adc_max * 0.80)
         #######################################################################################################
         tsp_dim_pct = 0.20
@@ -55,7 +55,7 @@ class Matrix:
         self.e = dict()
         self.em = self.em_prev = self.em_delta_abs = self.ev = 0
         self.low_ad = False
-        self.min_conns = 3#---------------------------------------------------------------------------------------------HP
+        self.min_conns = 1#---------------------------------------------------------------------------------------------HP
         self.em_el_mask = set()
         for a in self.po.em_mask: self.em_el_mask |= set(range((a * self.po.M), ((a + 1) * self.po.M)))
     def update(self):
@@ -75,7 +75,7 @@ class Matrix:
         fbv_conf = {(a // self.po.M):(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
         self.ov = set()
         ################################################################################################################
-        fb_val = 0.10#---------------------------------------------------------------------------------------------------HP
+        fb_val = 0.20#---------------------------------------------------------------------------------------------------HP
         acts = dict()
         for a in self.e:
             act = (len(set(self.e[a]) ^ self.av) / max(1, (len(self.e[a]) + len(self.av))))
@@ -88,7 +88,7 @@ class Matrix:
             mean = (sum(acts.values()) / le)
             variance = (sum(((v - mean) ** 2) for v in acts.values()) / le)
             sigma = (variance ** 0.5)
-            mult = 1.50#-musn't be too large!!!-----------------------------------------------------------------------------HP
+            mult = 3#-musn't be too large!!!-----------------------------------------------------------------------------HP
             thresh = (mean - (sigma * mult))
         self.pv = set()
         vi = dict()
@@ -97,16 +97,26 @@ class Matrix:
             cli = (a // self.po.M)
             if cli in vi:
                 self.ov.add(cli)
-                vi[cli] += 1
+                vi[cli][1].add(a)
             else:
-                if acts[a] <= thresh: self.pv.add(a)
-                vi[cli] = 1
-            del acts[a]              
+                if acts[a] <= thresh:
+                    self.pv.add(a)
+                    vi[cli] = [a, set()]
+            del acts[a]
+        val_sum = 0
+        for v in vi.values():
+            le = len(v[1])
+            if le > 0:
+                val_sum += ((le - 1) / (self.po.M - 1))
+                olv = set(self.e[v[0]])
+                for a in v[1]: olv &= set(self.e[a])
+                if len(olv) > 0:
+                    ri = random.choice(list(olv))
+                    for a in v[1]: del self.e[a][ri]
         self.em_prev = self.em
-        vals = [((a - 1) / (self.po.M - 1)) for a in vi.values()]
-        self.em = sum(vals)
-        em_ct = len(vals)
-        mr = (sum(vals) / max(1, len(vals)))
+        self.em = val_sum
+        em_ct = len(vi)
+        mr = (val_sum / max(1, len(vi)))
         ################################################################################################################
         bv_idx = -1
         if self.ffi == -1:
@@ -168,8 +178,9 @@ class Matrix:
         ################################################################################################################
         tl = list(self.e)
         for a in tl:
-            self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
+            # self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}#-----probably unnecessary!!!
             if len(self.e[a]) < self.min_conns: del self.e[a]
+        ################################################################################################################
         bv_string = f"  BV: {bv_idx:2d}" if bv_idx != -1 else ""
         lad_string = "  LAD" if self.low_ad else ""
         print(f"M: {(self.ffi + 1)}  EM: {self.em:.2f}  EMD: {round(em_delta * 1000000.0):8d}" +
