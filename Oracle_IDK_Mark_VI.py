@@ -3,10 +3,10 @@ import heapq
 class Oracle:
     def __init__(self):
         self.H = 3#-----------------------------------------------------------------------------------------HP
-        self.M = 49#-53-------------------------------------------------------------------------------------HP
-        self.K = 167#---------------------------------------------------------------------------------------HP
-        self.min_conns = 1#---------------------------------------------------------------------------------HP
-        self.adc_max = 37#----------------------------------------------------------------------------------HP
+        self.M = 53#-53-------------------------------------------------------------------------------------HP
+        self.K = 97#----------------------------------------------------------------------------------------HP
+        self.min_conns = 1#-musn't be too large!!!----------------------------------------------------------HP
+        self.adc_max = 107#----------------------------------------------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.80)
         #######################################################################################################
         tsp_dim_pct = 0.20#---------------------------------------------------------------------------------HP
@@ -76,19 +76,21 @@ class Matrix:
         self.ov = set()
         ###########################################################################################################
         fb_val = 0.20#-------------------------------------------------------------------------------------------HP
+        alpha = 3#-musn't be too large!!!------------------------------------------------------------------------HP
+        thresh = 0
         acts = dict()
         for a in self.e:
             act = (len(set(self.e[a]) ^ self.av) / max(1, (len(self.e[a]) + len(self.av))))
-            if (a // self.po.M) in fbv_conf: act = min(1, (act + fb_val))
-            # if (a // self.po.M) in fbv_conf: act = (act + fb_val)
+            cli = (a // self.po.M)
+            # if ((cli in fbv_conf) and (fbv_conf[cli] in self.e[a])): act = min(1, (act + fb_val))
+            if ((cli in fbv_conf) and (fbv_conf[cli] in self.e[a])): act = max(0, (act - fb_val))
+            # if cli in fbv_conf: act = (act + fb_val)
             acts[a] = act
-        thresh = 0
         le = len(acts)
         if le > 0:
             mean = (sum(acts.values()) / le)
             variance = (sum(((v - mean) ** 2) for v in acts.values()) / le)
-            precision = 3#-musn't be too large!!!--------------------------------------------------------------------HP
-            thresh = (mean - ((variance ** 0.5) * precision))
+            thresh = (mean - ((variance ** 0.5) * alpha))
         self.pv = set()
         vi = dict()
         while acts:
@@ -107,8 +109,10 @@ class Matrix:
             le = len(v[1])
             if le > 0:
                 val_sum += ((le - 1) / (self.po.M - 1))
-                olv = set(self.e[v[0]])
-                for a in v[1]: olv &= set(self.e[a])
+                # olv = set(self.e[v[0]])
+                # for a in v[1]: olv &= set(self.e[a])
+                olv = (set(self.e[v[0]]) & self.av)
+                for a in v[1]: olv &= (set(self.e[a]) & self.av)
                 if len(olv) > 0:
                     ri = random.choice(list(olv))
                     for a in v[1]: del self.e[a][ri]
@@ -179,7 +183,7 @@ class Matrix:
         pv_ex = (self.pv - pv_ack)
         for a in pv_ex:
             self.ov.add((a // self.po.M))
-            self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if ((k in cv) and (v > 0))}
+            self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if ((k in cv) and (v > 0))}#------------????????????????
         ################################################################################################################
         tl = list(self.e)
         for a in tl:
