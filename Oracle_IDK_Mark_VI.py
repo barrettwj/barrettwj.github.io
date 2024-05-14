@@ -29,15 +29,15 @@ class Oracle:
         #     self.bv_map[frozenset(ts.copy())] = a
         ##########################################################################################################
         ts_dim = 25
-        self.iv_map = {a:frozenset(set(random.sample(list(self.iv_mask), tsp_dim))) for a in range(ts_dim)}
-        self.bv_map = {frozenset(set(random.sample(list(self.bv_mask), tsp_dim))):a for a in range(ts_dim)}
+        self.iv_map = {a:frozenset(random.sample(list(self.iv_mask), tsp_dim)) for a in range(ts_dim)}
+        self.bv_map = {frozenset(random.sample(list(self.bv_mask), tsp_dim)):a for a in range(ts_dim)}
         ##########################################################################################################
         em_start_idx = (self.K * 2)
         # self.em_mask = {(em_start_idx + a) for a in range(self.K)}
         em_val_card = 13#-must be >= 2--------------------------------------------------------------------------HP
         em_num_vals = (self.K - em_val_card + 1)
         em_interval = (1.0 / (em_num_vals - 1))
-        self.em_map = {(a * em_interval):frozenset({(em_start_idx + a + b) for b in range(em_val_card)}) for a in range(em_num_vals)}
+        self.em_map = {(a * em_interval):frozenset((em_start_idx + a + b) for b in range(em_val_card)) for a in range(em_num_vals)}
         ##########################################################################################################
         self.m = [Matrix(self, a) for a in range(self.H)]
         self.cy = 0
@@ -57,8 +57,8 @@ class Matrix:
         max_val = (max(len(self.po.bv_map), len(self.po.em_map), self.po.Q) + 100)
         self.rsid = [a for a in range(max_val)]
     def update(self):
-        # fbv_conf = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv}
-        fbv_conf = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
+        fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv}
+        # fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
         self.ov = set()
         ###########################################################################################################
         fb_inf_act = set()
@@ -66,47 +66,45 @@ class Matrix:
         for a in self.e.keys():
             act = (len(self.e[a].keys() ^ self.av) / max(1, (len(self.e[a]) + len(self.av))))
             cli = (a // self.po.M)
-            if ((cli in fbv_conf) and (fbv_conf[cli] in self.e[a])):
+            if ((cli in fbv) and (fbv[cli] in self.e[a])):
                 act = max(0, (act - 0.20))#--------------------------------------------------------------------HP
             acts[a] = act
         le = len(acts)
-        rs = random.sample(self.rsid, le)
-        acts = {a[2]:a[0] for a in sorted([(v, rs.pop(), k) for k, v in acts.items()])}
         thresh = 0
         alpha = 3#-musn't be too large!!!----------------------------------------------------------------------HP
         if le > 0:
             mean = (sum(acts.values()) / le)
             sigma = (sum(((v - mean) ** 2) for v in acts.values()) / le)
             thresh = max(0, (mean - ((sigma ** 0.5) * alpha)))
+        rs = random.sample(self.rsid, le)
+        acts = {a[2]:a[0] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v <= thresh)])}
+        # acts = {a[2]:a[0] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v < thresh)])}#-----------?????
         self.pv = set()
         vi = dict()
         for k, v in acts.items():
-            # if v < thresh:#----------------------------------?????
-            if v <= thresh:#---------------------------------?????
-                cli = (k // self.po.M)
-                if cli in vi:
-                    if vi[cli][1] == -1:
-                        vi[cli][1] = k
-                        fb_inf_act.add(k)
-                        if cli in fbv_conf: self.e[k][fbv_conf[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
-                    else: vi[cli][2].add(k)
-                    if cli not in self.ov:
-                        self.ov.add(cli)
-                else:
-                    self.pv.add(k)
-                    vi[cli] = [k, -1, set()]
+            cli = (k // self.po.M)
+            if cli in vi:
+                if vi[cli][1] == -1:
+                    vi[cli][1] = k
+                    fb_inf_act.add(k)
+                    if cli in fbv: self.e[k][fbv[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
+                else: vi[cli][2].add(k)
+                if cli not in self.ov: self.ov.add(cli)
+            else:
+                self.pv.add(k)
+                vi[cli] = [k, -1, set()]
         self.em_prev = self.em
         self.em = 0
         for v in vi.values():
             le = len(v[2])
             if le > 0:
-                self.em += ((le - 1) / (self.po.M - 1))
-                tv = (self.av & self.e[v[0]].keys() & self.e[v[1]].keys())
+                self.em += (le / (self.po.M - 1))
+                tv = ((self.av & self.e[v[0]].keys()) | (self.av & self.e[v[1]].keys()))
                 for a in v[2]:
                     olv = (self.e[a].keys() & tv)
                     if len(olv) > 0: del self.e[a][random.choice(list(olv))]
-        em_ct = len(vi)
-        mr = (self.em / max(1, em_ct))
+        em_norm = len(vi)
+        mr = (self.em / max(1, em_norm))
         ################################################################################################################
         bv_idx = -1
         if self.ffi == -1:
@@ -146,12 +144,12 @@ class Matrix:
                             cav = (ci - self.e.keys())
                             break
                 wi = random.choice(list(cav))
-                if a in fbv_conf:
+                if a in fbv:
                     fb_inf_act.add(wi)
                     if wi in self.e:
-                        self.e[wi][fbv_conf[a]] = random.randrange(self.po.adc_min, self.po.adc_max)
+                        self.e[wi][fbv[a]] = random.randrange(self.po.adc_min, self.po.adc_max)
                     else:
-                        self.e[wi] = {fbv_conf[a]:random.randrange(self.po.adc_min, self.po.adc_max)}
+                        self.e[wi] = {fbv[a]:random.randrange(self.po.adc_min, self.po.adc_max)}
                 self.ov.add(a)
             else:
                 pv_ack |= ovl
@@ -160,12 +158,12 @@ class Matrix:
                 for b in avc: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
             else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in avc}
             self.av.add(wi)
-        self.em /= max(1, (em_ct + len(iv)))
+        self.em /= max(1, (em_norm + len(iv)))
         zr /= max(1, len(iv))
         self.em_delta_abs = abs(self.em - self.em_prev)
         pv_ex = (self.pv - pv_ack)
-        for a in pv_ex:
-            pass#----------------------should I use these to trigger feedback???
+        # for a in pv_ex:
+        #     pass#----------------------should I use these to trigger feedback???
         ################################################################################################################
         tl = list(self.e)
         for a in tl:
