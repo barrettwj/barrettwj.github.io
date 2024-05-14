@@ -1,12 +1,11 @@
 import random
-import heapq
 class Oracle:
     def __init__(self):
         self.H = 3#-----------------------------------------------------------------------------------------HP
         self.M = 53#-53-------------------------------------------------------------------------------------HP
         self.K = 97#----------------------------------------------------------------------------------------HP
         self.min_conns = 3#->= 1; musn't be too large!!!----------------------------------------------------HP
-        self.adc_max = 137#----------------------------------------------------------------------------------HP
+        self.adc_max = 37#----------------------------------------------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.80)
         #######################################################################################################
         tsp_dim_pct = 0.20#---------------------------------------------------------------------------------HP
@@ -56,19 +55,16 @@ class Matrix:
         self.e = dict()
         self.em = self.em_prev = self.em_delta_abs = self.ev = 0
         self.low_ad = False
-        self.em_el_mask = set()
-        for a in self.po.em_mask: self.em_el_mask |= set(range((a * self.po.M), ((a + 1) * self.po.M)))
     def update(self):
         # fbv_conf = {(a // self.po.M):(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv}
         fbv_conf = {(a // self.po.M):(a + self.po.fbv_offset) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
         self.ov = set()
         ###########################################################################################################
-        alpha = 3#-musn't be too large!!!------------------------------------------------------------------------HP
+        alpha = 2#-musn't be too large!!!------------------------------------------------------------------------HP
         thresh = 0
         fb_inf_att = set()
         acts = dict()
-        shl = list(self.e.keys())
-        random.shuffle(shl)
+        shl = random.sample(list(self.e.keys()), len(self.e))
         for a in shl:
             cli = (a // self.po.M)
             temp_cv = self.av.copy()
@@ -77,20 +73,19 @@ class Matrix:
                 fb_inf_att.add(a)
                 temp_cv.add(fbv_conf[cli])
                 flag = True
-            act = (len(set(self.e[a]) ^ temp_cv) / max(1, (len(self.e[a]) + len(temp_cv))))
+            act = (len(self.e[a].keys() ^ temp_cv) / max(1, (len(self.e[a]) + len(temp_cv))))
             if flag: act = max(0, (act - 0.10))#----------necessary????-------------------------------------------HP
             acts[a] = act
         le = len(acts)
         if le > 0:
             mean = (sum(acts.values()) / le)
-            variance = (sum(((v - mean) ** 2) for v in acts.values()) / le)
-            thresh = max(0, (mean - ((variance ** 0.5) * alpha)))
+            sigma = (sum(((v - mean) ** 2) for v in acts.values()) / le)
+            thresh = max(0, (mean - ((sigma ** 0.5) * alpha)))
         self.pv = set()
-        heap = [(v, k) for k, v in acts.items()]
-        heapq.heapify(heap)
+        acts_sorted = sorted([(v, random.randrange(1000000), k) for k, v in acts.items()])
         acts = dict()
-        while heap:
-            v, k = heapq.heappop(heap)
+        while acts_sorted:
+            v, r, k = acts_sorted.pop(0)
             acts[k] = v
         vi = dict()
         for k, v in acts.items():
@@ -107,9 +102,9 @@ class Matrix:
             le = len(v[1])
             if le > 0:
                 val_sum += ((le - 1) / (self.po.M - 1))
-                olv = (set(self.e[v[0]]) & self.av)
+                olv = (self.e[v[0]].keys() & self.av)
                 for a in v[1]:#------------------------------------------------------WORK ON THIS!!!!!!!!!!!!!!
-                    tv = (set(self.e[a]) & olv)
+                    tv = (self.e[a].keys() & olv)
                     if len(tv) > 0: del self.e[a][random.choice(list(tv))]
         self.em_prev = self.em
         self.em = val_sum
@@ -119,20 +114,16 @@ class Matrix:
         bv_idx = -1
         if self.ffi == -1:
             bv = ({(a // self.po.M) for a in self.pv} & self.po.bv_mask)
-            # heap = [(len(k ^ bv), k, v) for k, v in self.po.bv_map.items()]
-            heap = [(len(k ^ bv), random.randrange(1000000), k, v) for k, v in self.po.bv_map.items()]
-            heapq.heapify(heap)
-            # d, bv_ppcv, bv_idx = heapq.heappop(heap)
-            d, r, bv_ppcv, bv_idx = heapq.heappop(heap)
+            bv_sorted = sorted([(len(k ^ bv), random.randrange(1000000), k, v) for k, v in self.po.bv_map.items()])
+            d, r, bv_ppcv, bv_idx = bv_sorted.pop(0)
             # print(d)
             iv = {a for a in self.po.iv_map[bv_idx]}
             iv |= bv_ppcv
             ########################################################
             # self.low_ad = False
             ##########################################################
-            heap = [(abs(k - self.em_delta_abs), k, v) for k, v in self.po.em_map.items()]
-            heapq.heapify(heap)
-            iv |= heapq.heappop(heap)[2]
+            em_sorted = sorted([(abs(k - self.em_delta_abs), random.randrange(1000000), v) for k, v in self.po.em_map.items()])
+            iv |= em_sorted.pop(0)[2]
         else: iv = self.po.m[self.ffi].ov.copy()
         #################################################################################################################
         zr = 0
@@ -147,15 +138,15 @@ class Matrix:
                 self.ov.add(a)
                 self.em += 1
                 zr += 1
-                cav = (ci - set(self.e))
+                cav = (ci - self.e.keys())
                 while not cav:
-                    tv = list(ci & set(self.e))
-                    random.shuffle(tv)
+                    tl = list(ci & self.e.keys())
+                    tv = random.sample(tl, len(tl))
                     for b in tv:
                         self.e[b] = {k:(v - 1) for k, v in self.e[b].items() if (v > 0)}
                         if len(self.e[b]) < self.po.min_conns:
                             del self.e[b]
-                            cav = (ci - set(self.e))
+                            cav = (ci - self.e.keys())
                             break
                 wi = random.choice(list(cav))
             else:
@@ -167,7 +158,7 @@ class Matrix:
                 if wi in fb_inf_att:
                     fb_inf_act.add(wi)
                     pv_ack.add(wi)
-                    self.ov.add(a)
+                self.ov.add(a)#----------------------------------------------?????
             if wi in self.e:
                 for b in ncv: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
             else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in ncv}
