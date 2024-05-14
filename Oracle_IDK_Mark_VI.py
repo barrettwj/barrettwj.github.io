@@ -2,16 +2,16 @@ import random
 class Oracle:
     def __init__(self):
         self.H = 3#-----------------------------------------------------------------------------------------HP
-        self.M = 53#-53-------------------------------------------------------------------------------------HP
-        self.K = 197#-97-------------------------------------------------------------------------------------HP
+        self.M = 5#-53-------------------------------------------------------------------------------------HP
+        self.K = 97#-97-------------------------------------------------------------------------------------HP
         self.Q = (self.H * self.M * self.K)
-        self.min_conns = 3#-must be >= 1; musn't be too large!!!--------------------------------------------HP
-        self.adc_max = 37#-if too large, fb seems impaired???-----------------------------------------------HP
+        self.min_conns = 2#-must be >= 1; musn't be too large!!!--------------------------------------------HP
+        self.adc_max = 137#-if too large, fb seems impaired???-----------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.80)
         #######################################################################################################
-        tsp_dim_pct = 0.20#-0.20----------------------------------------------------------------------------HP
+        tsp_dim_pct = 0.40#-0.20----------------------------------------------------------------------------HP
         tsp_dim = round(self.K * tsp_dim_pct)
-        ts_dim = round(self.K / (tsp_dim + 2))
+        # ts_dim = round(self.K / (tsp_dim + 2))
         self.iv_mask = {a for a in range(self.K)}
         # tv = self.iv_mask.copy()
         # self.iv_map = dict()
@@ -28,7 +28,7 @@ class Oracle:
         #     tv -= ts
         #     self.bv_map[frozenset(ts.copy())] = a
         ##########################################################################################################
-        ts_dim = 25
+        ts_dim = 5
         self.iv_map = {a:frozenset(random.sample(list(self.iv_mask), tsp_dim)) for a in range(ts_dim)}
         self.bv_map = {frozenset(random.sample(list(self.bv_mask), tsp_dim)):a for a in range(ts_dim)}
         ##########################################################################################################
@@ -54,55 +54,44 @@ class Matrix:
         self.e = dict()
         self.em = self.em_prev = self.em_delta_abs = self.ev = 0
         self.low_ad = False
-        max_val = (max(len(self.po.bv_map), len(self.po.em_map), self.po.Q) + 100)
+        max_val = (max(len(self.po.bv_map), len(self.po.em_map), self.po.Q) + 10)
         self.rsid = [a for a in range(max_val)]
     def update(self):
         fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv}
         # fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
         self.ov = set()
+        vi = dict()
         ###########################################################################################################
-        fb_inf_act = set()
+        fb_inf_mr = set()
         acts = dict()
         for a in self.e.keys():
-            act = (len(self.e[a].keys() ^ self.av) / max(1, (len(self.e[a]) + len(self.av))))
             cli = (a // self.po.M)
-            if ((cli in fbv) and (fbv[cli] in self.e[a])):
-                act = max(0, (act - 0.20))#--------------------------------------------------------------------HP
-            acts[a] = act
+            cv = self.av.copy()
+            if cli in fbv: cv.add(fbv[cli])
+            acts[a] = (len(self.e[a].keys() ^ cv) / max(1, (len(self.e[a]) + len(cv))))
         le = len(acts)
-        thresh = 0
-        alpha = 3#-musn't be too large!!!----------------------------------------------------------------------HP
+        alpha = 2#-musn't be too large!!!----------------------------------------------------------------------HP
         if le > 0:
             mean = (sum(acts.values()) / le)
             sigma = (sum(((v - mean) ** 2) for v in acts.values()) / le)
             thresh = max(0, (mean - ((sigma ** 0.5) * alpha)))
-        rs = random.sample(self.rsid, le)
-        acts = {a[2]:a[0] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v <= thresh)])}
-        # acts = {a[2]:a[0] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v < thresh)])}#-----------?????
-        self.pv = set()
-        vi = dict()
-        for k, v in acts.items():
-            cli = (k // self.po.M)
-            if cli in vi:
-                if vi[cli][1] == -1:
-                    vi[cli][1] = k
-                    fb_inf_act.add(k)
-                    if cli in fbv: self.e[k][fbv[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
-                else: vi[cli][2].add(k)
-                if cli not in self.ov: self.ov.add(cli)
-            else:
-                self.pv.add(k)
-                vi[cli] = [k, -1, set()]
+            rs = random.sample(self.rsid, le)
+            aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v <= thresh)])]
+            # aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v < thresh)])]#-----------------?????
+            for a in aks:
+                cli = (a // self.po.M)
+                if cli in vi:
+                    vi[cli][1].add(a)
+                    ##########################
+                    if ((cli in fbv) and (sum((fbv[cli] in self.e[b]) for b in self.e.keys()) == 0)):
+                        self.e[vi[cli][0]][fbv[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
+                        fb_inf_mr.add(vi[cli][0])
+                    ###########################
+                    if cli not in self.ov: self.ov.add(cli)
+                else: vi[cli] = [a, set()]
+        self.pv = {v[0] for v in vi.values()}
         self.em_prev = self.em
-        self.em = 0
-        for v in vi.values():
-            le = len(v[2])
-            if le > 0:
-                self.em += (le / (self.po.M - 1))
-                tv = ((self.av & self.e[v[0]].keys()) | (self.av & self.e[v[1]].keys()))
-                for a in v[2]:
-                    olv = (self.e[a].keys() & tv)
-                    if len(olv) > 0: del self.e[a][random.choice(list(olv))]
+        self.em = sum((len(v[1]) / (self.po.M - 1)) for v in vi.values())
         em_norm = len(vi)
         mr = (self.em / max(1, em_norm))
         ################################################################################################################
@@ -115,21 +104,23 @@ class Matrix:
             # print(d)
             iv = {a for a in self.po.iv_map[bv_idx]}
             iv |= bv_ppcv
-            ########################################################
+            #################################
             # self.low_ad = False
-            ##########################################################
+            #################################
             rs = random.sample(self.rsid, len(self.po.em_map))
             em_sorted = sorted([(abs(k - self.em_delta_abs), rs.pop(), v) for k, v in self.po.em_map.items()])
-            iv |= em_sorted.pop(0)[2]
+            # iv |= em_sorted.pop(0)[2]
         else: iv = self.po.m[self.ffi].ov.copy()
         #################################################################################################################
         zr = 0
+        fb_inf_zr = set()
         avc = self.av.copy()
         self.av = set()
         pv_ack = set()
-        for a in iv:
-            ci = {((a * self.po.M) + b) for b in range(self.po.M)}
+        cid = {a:{((a * self.po.M) + b) for b in range(self.po.M)} for a in iv}
+        for a, ci in cid.items():
             ovl = (ci & self.pv)
+            nvc = avc.copy()
             if len(ovl) == 0:
                 self.em += 1
                 zr += 1
@@ -144,26 +135,21 @@ class Matrix:
                             cav = (ci - self.e.keys())
                             break
                 wi = random.choice(list(cav))
-                if a in fbv:
-                    fb_inf_act.add(wi)
-                    if wi in self.e:
-                        self.e[wi][fbv[a]] = random.randrange(self.po.adc_min, self.po.adc_max)
-                    else:
-                        self.e[wi] = {fbv[a]:random.randrange(self.po.adc_min, self.po.adc_max)}
+                if ((a in fbv) and (sum((fbv[a] in self.e[b]) for b in self.e.keys()) == 0)):
+                    fb_inf_zr.add(wi)
+                    nvc.add(fbv[a])
                 self.ov.add(a)
             else:
                 pv_ack |= ovl
                 wi = ovl.pop()
             if wi in self.e:
-                for b in avc: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
-            else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in avc}
+                for b in nvc: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
+            else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in nvc}
             self.av.add(wi)
         self.em /= max(1, (em_norm + len(iv)))
         zr /= max(1, len(iv))
         self.em_delta_abs = abs(self.em - self.em_prev)
         pv_ex = (self.pv - pv_ack)
-        # for a in pv_ex:
-        #     pass#----------------------should I use these to trigger feedback???
         ################################################################################################################
         tl = list(self.e)
         for a in tl:
@@ -175,6 +161,6 @@ class Matrix:
         lad_string = "  LAD" if self.low_ad else ""
         print(f"M: {(self.ffi + 1)}  EM: {self.em:.2f}  EMDA: {self.em_delta_abs:.2f}" +
         f"  ES: {len(self.e):6d}  PV: {len(self.pv):4d}  ZR: {zr:.2f}  MR: {mr:.2f}  PVEX: {len(pv_ex):4d}" +
-        f"  FBIN: {len(fb_inf_act):4d}" + bv_string + lad_string)
+        f"  FBINZR: {len(fb_inf_zr):4d}  FBINMR: {len(fb_inf_mr):4d}" + bv_string + lad_string)
 oracle = Oracle()
 oracle.update()
