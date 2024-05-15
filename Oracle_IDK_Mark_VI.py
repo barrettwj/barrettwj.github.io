@@ -2,14 +2,14 @@ import random
 class Oracle:
     def __init__(self):
         self.H = 3#-----------------------------------------------------------------------------------------HP
-        self.M = 5#-53-------------------------------------------------------------------------------------HP
+        self.M = 53#-53-------------------------------------------------------------------------------------HP
         self.K = 97#-97-------------------------------------------------------------------------------------HP
         self.Q = (self.H * self.M * self.K)
-        self.min_conns = 2#-must be >= 1; musn't be too large!!!--------------------------------------------HP
+        self.min_conns = 1#-must be >= 1; musn't be too large!!!--------------------------------------------HP
         self.adc_max = 137#-if too large, fb seems impaired???-----------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.80)
         #######################################################################################################
-        tsp_dim_pct = 0.40#-0.20----------------------------------------------------------------------------HP
+        tsp_dim_pct = 0.60#-0.20----------------------------------------------------------------------------HP
         tsp_dim = round(self.K * tsp_dim_pct)
         # ts_dim = round(self.K / (tsp_dim + 2))
         self.iv_mask = {a for a in range(self.K)}
@@ -34,7 +34,7 @@ class Oracle:
         ##########################################################################################################
         em_start_idx = (self.K * 2)
         # self.em_mask = {(em_start_idx + a) for a in range(self.K)}
-        em_val_card = 13#-must be >= 2--------------------------------------------------------------------------HP
+        em_val_card = 3#-must be >= 2--------------------------------------------------------------------------HP
         em_num_vals = (self.K - em_val_card + 1)
         em_interval = (1.0 / (em_num_vals - 1))
         self.em_map = {(a * em_interval):frozenset((em_start_idx + a + b) for b in range(em_val_card)) for a in range(em_num_vals)}
@@ -50,34 +50,35 @@ class Matrix:
         self.po = po_in
         self.ffi = (mi_in - 1)
         self.fbi = ((mi_in + 1) % self.po.H)
-        self.ov = self.av = self.pv = set()
+        self.ov = self.pv = set()
         self.e = dict()
         self.em = self.em_prev = self.em_delta_abs = self.ev = 0
         self.low_ad = False
         max_val = (max(len(self.po.bv_map), len(self.po.em_map), self.po.Q) + 10)
         self.rsid = [a for a in range(max_val)]
     def update(self):
-        fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv}
-        # fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
-        self.ov = set()
-        vi = dict()
+        # fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv}
+        fbv = {(a // self.po.M):-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
         ###########################################################################################################
         fb_inf_mr = set()
         acts = dict()
         for a in self.e.keys():
             cli = (a // self.po.M)
-            cv = self.av.copy()
+            cv = self.pv.copy()
             if cli in fbv: cv.add(fbv[cli])
             acts[a] = (len(self.e[a].keys() ^ cv) / max(1, (len(self.e[a]) + len(cv))))
+        ##########################################################################################################
         le = len(acts)
-        alpha = 2#-musn't be too large!!!----------------------------------------------------------------------HP
+        self.ov = set()
+        vi = dict()
+        alpha = 4#-musn't be too large!!!----------------------------------------------------------------------HP
         if le > 0:
             mean = (sum(acts.values()) / le)
             sigma = (sum(((v - mean) ** 2) for v in acts.values()) / le)
             thresh = max(0, (mean - ((sigma ** 0.5) * alpha)))
             rs = random.sample(self.rsid, le)
             aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v <= thresh)])]
-            # aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v < thresh)])]#-----------------?????
+            # aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v < thresh)])]#-------------?????
             for a in aks:
                 cli = (a // self.po.M)
                 if cli in vi:
@@ -109,18 +110,18 @@ class Matrix:
             #################################
             rs = random.sample(self.rsid, len(self.po.em_map))
             em_sorted = sorted([(abs(k - self.em_delta_abs), rs.pop(), v) for k, v in self.po.em_map.items()])
-            # iv |= em_sorted.pop(0)[2]
+            iv |= em_sorted.pop(0)[2]
         else: iv = self.po.m[self.ffi].ov.copy()
         #################################################################################################################
         zr = 0
         fb_inf_zr = set()
-        avc = self.av.copy()
-        self.av = set()
+        pvt = self.pv.copy()
+        self.pv = set()
         pv_ack = set()
-        cid = {a:{((a * self.po.M) + b) for b in range(self.po.M)} for a in iv}
-        for a, ci in cid.items():
-            ovl = (ci & self.pv)
-            nvc = avc.copy()
+        for a in iv:
+            ci = {((a * self.po.M) + b) for b in range(self.po.M)}
+            ovl = (ci & pvt)
+            nvc = pvt.copy()
             if len(ovl) == 0:
                 self.em += 1
                 zr += 1
@@ -145,7 +146,7 @@ class Matrix:
             if wi in self.e:
                 for b in nvc: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
             else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in nvc}
-            self.av.add(wi)
+            self.pv.add(wi)
         self.em /= max(1, (em_norm + len(iv)))
         zr /= max(1, len(iv))
         self.em_delta_abs = abs(self.em - self.em_prev)
@@ -154,7 +155,7 @@ class Matrix:
         tl = list(self.e)
         for a in tl:
             # pass
-            # self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}#----------------------necessary?????
+            self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}#----------------------necessary?????
             if len(self.e[a]) < self.po.min_conns: del self.e[a]#----------------------------------necessary?????
         ################################################################################################################
         bv_string = f"  BVID: {bv_idx:2d}" if bv_idx != -1 else ""
