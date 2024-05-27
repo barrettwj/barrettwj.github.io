@@ -42,6 +42,8 @@ class Matrix:
         self.em = self.em_prev = self.em_delta_abs = self.forget_period_ct = 0
         self.forget_period = 10#-----------------------------------------------------------------------------HP
     def update(self):
+        fbv_raw = self.po.m[self.fbi].pv.copy()
+        # fbv_raw = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else set()
         fbv = {-(a + 1) for a in self.po.m[self.fbi].pv}
         # fbv = {-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else set()
         """
@@ -63,16 +65,18 @@ class Matrix:
             sigma = (sum(((v - mean) ** 2) for v in acts.values()) / le)
             thresh = max(0, (mean - ((sigma ** 0.5) * alpha)))
             rs = random.sample(range(le), le)
-            # aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v <= thresh)])]
+            # aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v <= thresh)])]#--------?????
             aks = [a[2] for a in sorted([(v, rs.pop(), k) for k, v in acts.items() if (v < thresh)])]#---------?????
             for a in aks:
                 cli = (a // self.po.M)
                 if cli in vi:
                     vi[cli][1].add(a)
                     #########################################
+                    rel_v = (set(range((cli * self.po.M), ((cli + 1) * self.po.M))) & fbv_raw)
+                    rel_v = {-(a + 1) for a in rel_v}
                     if a in self.e:
-                        for b in fbv: self.e[a][b] = random.randrange(self.po.adc_min, self.po.adc_max)
-                    else: self.e[a] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in fbv}
+                        for b in rel_v: self.e[a][b] = random.randrange(self.po.adc_min, self.po.adc_max)
+                    else: self.e[a] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in rel_v}
                     if cli not in self.ov: self.ov.add(cli)
                     #########################################
                 else: vi[cli] = [a, set()]
@@ -131,9 +135,11 @@ class Matrix:
                     cav = (ci - self.e.keys())
                 wi = random.choice(list(cav))
                 #########################################
+                rel_v = (set(range((a * self.po.M), ((a + 1) * self.po.M))) & fbv_raw)
+                rel_v = {-(a + 1) for a in rel_v}
                 if wi in self.e:
-                    for b in fbv: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
-                else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in fbv}
+                    for b in rel_v: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
+                else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in rel_v}
                 self.ov.add(a)
                 #########################################
             else:
