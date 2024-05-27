@@ -1,23 +1,25 @@
 import random
 class Oracle:
     def __init__(self):
-        self.H = 10#-----------------------------------------------------------------------------------------HP
-        self.M = 23#-53-------------------------------------------------------------------------------------HP
-        self.K = 137#-97-------------------------------------------------------------------------------------HP
-        self.adc_max = 37#-if too large, fb seems impaired???----------------------------------------------HP
-        self.adc_min = round(self.adc_max * 0.90)
+        self.H = 3#-----------------------------------------------------------------------------------------HP
+        self.M = 53#-53-------------------------------------------------------------------------------------HP
+        self.K = 97#-97-------------------------------------------------------------------------------------HP
+        self.adc_max = 37#----------------------------------------------------------------------------------HP
+        self.adc_min = round(self.adc_max * 0.70)
         ##############################################################################################################
-        self.tsp_dim_pct = 0.50#-0.30----------------------------------------------------------------------------HP
+        self.tsp_dim_pct = 0.50#-0.30-----------------------------------------------------------------------HP
         self.tsp_dim = round(self.K * self.tsp_dim_pct)
-        ts_dim = 10#---------------------------------------------------------------------------------------------HP
+        ts_dim = 3#-----------------------------------------------------------------------------------------HP
         self.iv_mask = {a for a in range(self.K)}
         self.iv_map = {a:frozenset(random.sample(list(self.iv_mask), self.tsp_dim)) for a in range(ts_dim)}
         self.bv_mask = {(self.K + a) for a in range(self.K)}
-        self.bv_map = {frozenset(random.sample(list(self.bv_mask), self.tsp_dim)):a for a in range(ts_dim)}
+        self.bv_map_adc_max = 200#--------------------------------------------------------------------------HP
+        self.bv_map_dim_max = (ts_dim - 1)
+        self.bv_map = dict()
         ##############################################################################################################
         em_start_idx = (self.K * 2)
         self.em_mask = {(em_start_idx + a) for a in range(self.K)}
-        em_val_card = 27#-must be >= 2----------------------------------------------------------------------HP
+        em_val_card = 13#-must be >= 2-----------------------------------------------------------------------HP
         em_num_vals = (self.K - em_val_card + 1)
         em_interval = (1.0 / (em_num_vals - 1))
         self.em_map = {(a * em_interval):frozenset((em_start_idx + a + b)
@@ -37,17 +39,17 @@ class Matrix:
         self.fbi = ((mi_in + 1) % self.po.H)
         self.ov = self.pv = set()
         self.e = dict()
-        self.em = self.em_prev = self.em_delta_abs = 0
+        self.em = self.em_prev = self.em_delta_abs = self.forget_period_ct = 0
+        self.forget_period = 10#-----------------------------------------------------------------------------HP
     def update(self):
         fbv = {-(a + 1) for a in self.po.m[self.fbi].pv}
-        # fbv = {-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else dict()
+        # fbv = {-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else set()
         """
         # if ((self.fbi == 0) and (random.randrange(1000000) < 900000)):
         if self.fbi == 0:
             dim = round(self.po.tsp_dim_pct * len(self.po.matrix_cl_mask))
             rs = random.sample(list(self.po.matrix_cl_mask), dim)
-            fbvl = [random.choice([((a * self.po.M) + b) for b in range(self.po.M)]) for a in rs]
-            fbv = {-(a + 1) for a in fbvl}
+            fbv = {-(random.choice(range((a * self.po.M), ((a + 1) * self.po.M))) + 1) for a in rs}
         """
         ##############################################################################################################
         cv = (self.pv | fbv)
@@ -67,7 +69,12 @@ class Matrix:
                 cli = (a // self.po.M)
                 if cli in vi:
                     vi[cli][1].add(a)
+                    #########################################
+                    if a in self.e:
+                        for b in fbv: self.e[a][b] = random.randrange(self.po.adc_min, self.po.adc_max)
+                    else: self.e[a] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in fbv}
                     if cli not in self.ov: self.ov.add(cli)
+                    #########################################
                 else: vi[cli] = [a, set()]
         self.pv = {v[0] for v in vi.values()}
         self.em_prev = self.em
@@ -76,22 +83,37 @@ class Matrix:
         mr = (self.em / max(1, em_norm))
         ##############################################################################################################
         if self.ffi == -1:
-            bv = {(a // self.po.M) for a in self.pv if ((a // self.po.M) in self.po.bv_mask)}
+            # bv = {a for a in self.pv if ((a // self.po.M) in self.po.bv_mask)}
+            bv = self.pv.copy()
             rs = random.sample(range(len(self.po.bv_map)), len(self.po.bv_map))
-            bv_sorted = sorted([((len(k ^ bv) / max(1, (len(k) + len(bv)))), rs.pop(), k, v) for k, v in self.po.bv_map.items()])
-            d, r, bv_ppcv, bv_idx = bv_sorted.pop(0)
+            bv_sorted = sorted([((len(k ^ bv) / max(1, (len(k) + len(bv)))), rs.pop(), k, v[0]) for k, v in self.po.bv_map.items()])
+            if len(bv_sorted) == 0: d = 1000000
+            else: d, r, bv_found, bv_idx = bv_sorted.pop(0)
+            if d > 0:#-------------------------------------------------------------------------------HP
+                # print(self.po.cy)
+                tl = list(self.po.iv_map.keys() - {v[0] for v in self.po.bv_map.values()})
+                bv_idx = random.choice(tl)
+            self.po.bv_map[frozenset(bv.copy())] = [bv_idx, self.po.bv_map_adc_max]
             # print(f"D: {d:.2f}")
+            while len(self.po.bv_map) > self.po.bv_map_dim_max:
+                rs = random.sample(list(self.po.bv_map.keys()), len(self.po.bv_map))
+                for a in rs:
+                    if (self.po.bv_map[a][1] > 0): self.po.bv_map[a][1] -= 1
+                    else:
+                        del self.po.bv_map[a]
+                        break
             iv = {a for a in self.po.iv_map[bv_idx]}
-            iv |= bv_ppcv
+            iv |= {(a // self.po.M) for a in bv if ((a // self.po.M) in self.po.bv_mask)}
             ##########################################
             rs = random.sample(range(len(self.po.em_map)), len(self.po.em_map))
             em_sorted = sorted([(abs(k - self.em_delta_abs), rs.pop(), v) for k, v in self.po.em_map.items()])
             iv |= em_sorted.pop(0)[2]
         else: iv = self.po.m[self.ffi].ov.copy()
-        ##############################################################################################################
+        ###########################################################################################################
         zr = 0
         pvc = self.pv.copy()
-        cv = (pvc | fbv)
+        # cv = (pvc | fbv)
+        cv = self.pv.copy()
         self.pv = set()
         pv_ack = set()
         for a in iv:
@@ -101,17 +123,19 @@ class Matrix:
                 self.em += 1
                 zr += 1
                 cav = (ci - self.e.keys())
-                while not cav:
+                if not cav:
                     tl = list(ci & self.e.keys())
-                    random.shuffle(tl)
-                    for b in tl:
-                        self.e[b] = {k:(v - 1) for k, v in self.e[b].items() if (v > 0)}
-                        if not self.e[b]:
-                            del self.e[b]
-                            cav = (ci - self.e.keys())
-                            break
+                    rs = random.sample(range(len(tl)), len(tl))
+                    tls = sorted([(sum(self.e[b][c] for c in self.e[b].keys()), rs.pop(), b) for b in tl])
+                    del self.e[tls[0][2]]
+                    cav = (ci - self.e.keys())
                 wi = random.choice(list(cav))
+                #########################################
+                if wi in self.e:
+                    for b in fbv: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
+                else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in fbv}
                 self.ov.add(a)
+                #########################################
             else:
                 pv_ack |= ovl
                 wi = ovl.pop()
@@ -123,14 +147,33 @@ class Matrix:
         zr /= max(1, len(iv))
         self.em_delta_abs = abs(self.em - self.em_prev)
         pv_ex = (pvc - pv_ack)
+        ###########################################
+        """
+        for a in pv_ex:
+            # if a in self.e:
+            #     for b in fbv: self.e[a][b] = random.randrange(self.po.adc_min, self.po.adc_max)
+            # else: self.e[a] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in fbv}
+            self.ov.add((a // self.po.M))
+        """
+        ###########################################
         ##############################################################################################################
-        tl = list(self.e)
-        for a in tl:
-            self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}#-----------------------necessary?????
-            if not self.e[a]: del self.e[a]#--------------------------------------------------------necessary?????
+        self.forget_period_ct += 1
+        if self.forget_period_ct == self.forget_period:
+            tl = list(self.e.keys())
+            for a in tl:
+                self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
+                if not self.e[a]: del self.e[a]
+            self.forget_period_ct = 0
+        ##############################################################################################################
+        for a in self.e.keys():
+            if len(self.e[a]) > 105:#--------------------------------------------------------------------------HP
+                rs = random.sample(range(len(self.e[a])), len(self.e[a]))
+                tls = sorted([(self.e[a][b], rs.pop(), b) for b in self.e[a].keys()])
+                del self.e[a][tls[0][2]]
         ##############################################################################################################
         bv_string = f"  BVID: {bv_idx:2d}" if self.ffi == -1 else ""
         print(f"M: {(self.ffi + 1)}  EM: {self.em:.2f}  EMDA: {self.em_delta_abs:.2f}" +
-        f"  ES: {len(self.e):6d}  PV: {len(self.pv):4d}  ZR: {zr:.2f}  MR: {mr:.2f}  PVEX: {len(pv_ex):4d}" + bv_string)
+        f"  ES: {len(self.e):6d}  PV: {len(self.pv):4d}  ZR: {zr:.2f}  MR: {mr:.2f}  PVEX: {len(pv_ex):4d}" +
+        f"  BVL: {len(self.po.bv_map):2d}" + bv_string)
 oracle = Oracle()
 oracle.update()
