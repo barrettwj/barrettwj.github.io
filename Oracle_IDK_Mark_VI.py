@@ -42,10 +42,9 @@ class Matrix:
         self.em = self.em_prev = self.em_delta_abs = self.forget_period_ct = 0
         self.forget_period = 10#-----------------------------------------------------------------------------HP
     def update(self):
-        fbv_raw = self.po.m[self.fbi].pv.copy()
-        # fbv_raw = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else set()
-        fbv = {-(a + 1) for a in self.po.m[self.fbi].pv}
-        # fbv = {-(a + 1) for a in self.po.m[self.fbi].pv} if self.fbi != 0 else set()
+        # fbv_raw = self.po.m[self.fbi].pv.copy()
+        fbv_raw = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else set()
+        fbv = {-(a + 1) for a in fbv_raw}
         """
         # if ((self.fbi == 0) and (random.randrange(1000000) < 900000)):
         if self.fbi == 0:
@@ -73,7 +72,7 @@ class Matrix:
                     vi[cli][1].add(a)
                     #########################################
                     rel_v = (set(range((cli * self.po.M), ((cli + 1) * self.po.M))) & fbv_raw)
-                    rel_v = {-(a + 1) for a in rel_v}
+                    rel_v = {-(b + 1) for b in rel_v}
                     if a in self.e:
                         for b in rel_v: self.e[a][b] = random.randrange(self.po.adc_min, self.po.adc_max)
                     else: self.e[a] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in rel_v}
@@ -121,7 +120,7 @@ class Matrix:
         self.pv = set()
         pv_ack = set()
         for a in iv:
-            ci = {((a * self.po.M) + b) for b in range(self.po.M)}
+            ci = set(range((a * self.po.M), ((a + 1) * self.po.M)))
             ovl = (ci & pvc)
             if len(ovl) == 0:
                 self.em += 1
@@ -135,8 +134,8 @@ class Matrix:
                     cav = (ci - self.e.keys())
                 wi = random.choice(list(cav))
                 #########################################
-                rel_v = (set(range((a * self.po.M), ((a + 1) * self.po.M))) & fbv_raw)
-                rel_v = {-(a + 1) for a in rel_v}
+                rel_v = (ci & fbv_raw)
+                rel_v = {-(b + 1) for b in rel_v}
                 if wi in self.e:
                     for b in rel_v: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
                 else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in rel_v}
