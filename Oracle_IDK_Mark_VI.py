@@ -1,6 +1,11 @@
 import random
 import sys
-# import Bing_Chat_Interface_Trial_1
+import os
+# cookies found as "chats?bundleVersion=X.Y.Z" under "Network" tab of developer tools (right-click and Inspect in Bing chat box).
+# Copy everything after "Cookie:" Request Header
+with open('Copilot Cookies.txt', 'r') as file: os.environ["BING_COOKIES"] = file.read()
+import asyncio
+from sydney import SydneyClient
 class Oracle:
     def __init__(self):
         self.H = 3#-----------------------------------------------------------------------------------------HP
@@ -9,7 +14,7 @@ class Oracle:
         self.adc_max = 67#-37------------------------------------------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.85)
         self.cy = 0
-        self.max_int = sys.maxsize
+        self.max_int = sys.maxsize# = 2^63 = 9.223372037E18
         start_idx = 0
         ##############################################################################################################
         self.tsp_dim_pct = 0.40#-0.30-----------------------------------------------------------------------HP
@@ -51,11 +56,24 @@ class Oracle:
         self.matrix_dim_offset = (self.matrix_dim * self.M)
         # print(self.max_int)
         # print(self.matrix_dim_offset)
+        self.sydney_output = ""
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
+        # asyncio.run(self.sydney_interaction("What is the tallest building?"))
         while True:
             for a in self.m: a.update()
             self.cy += 1
+    async def sydney_interaction(self, prompt_in = ""):
+        async with SydneyClient(style="precise") as sydney:# style= "balanced", "precise", "creative"
+            await sydney.reset_conversation()
+            print("Sydney: ", end="", flush=True)
+            response, suggested_responses = await sydney.ask(prompt_in, suggestions=True, citations=False)
+            print(response, end="", flush=True)
+            print("\n")
+            if suggested_responses:
+                print("Suggested Responses: ", end="", flush=True)
+                print(suggested_responses, end="", flush=True)
+            print("\n")
 class Matrix:
     def __init__(self, po_in, mi_in):
         self.po = po_in
@@ -65,19 +83,19 @@ class Matrix:
         self.iv = self.ov = self.av = set()
         self.e = dict()
         self.em = self.em_prev = self.em_delta_abs = self.forget_period_ct = 0
-        self.forget_period = 3#->=1----------------------------------------------------------------------------HP
+        self.forget_period = 2#->=1----------------------------------------------------------------------------HP
     def update(self):
         fbv = self.po.m[self.fbi].av.copy()
-        fbvm = {(a // self.MV):{-(b + 1) for b in (set(range(((a // self.MV) * self.MV),
-                                                               (((a // self.MV) + 1) * self.MV))) & fbv)} for a in fbv}
+        fbvm = {(a // self.MV):-(a + 1) for a in fbv}
         ##############################################################################################################
         cv = self.av.copy()
         cv |= {(self.po.matrix_dim_offset + a) for a in self.iv}#------------------------------------------CAUSES ISSUES!!!???
+        cv |= {-(a + 1) for a in fbv}
         acts = dict()
         for a in self.e.keys():
             tv = cv.copy()
-            cli = (a // self.MV)
-            if cli in fbvm: tv |= fbvm[cli]
+            # cli = (a // self.MV)
+            # if cli in fbvm: tv.add(fbvm[cli])
             acts[a] = (len(self.e[a].keys() ^ tv) / max(1, (len(self.e[a]) + len(tv))))
         le = len(acts)
         self.ov = set()
@@ -85,8 +103,8 @@ class Matrix:
         alpha = 3#-musn't be too large!!!--------------------------------------------------------------------------HP
         if le > 0:
             mu = (sum(acts.values()) / le)
-            # vari = (sum(((v - mu) ** 2) for v in acts.values()) / le)#----?????
-            vari = (sum(((v - mu) ** 2) for v in acts.values()) / (le - 1))#----?????
+            vari = (sum(((v - mu) ** 2) for v in acts.values()) / le)#----?????
+            # vari = (sum(((v - mu) ** 2) for v in acts.values()) / max(1, (le - 1)))#----?????
             sigma = (vari ** (1 / 2))
             # thresh = max(0, (mu - (sigma * alpha)))#----?????
             thresh = (mu - (sigma * alpha))#----?????
@@ -99,10 +117,8 @@ class Matrix:
                     vi[cli][1].add(a)
                     #########################################
                     if cli in fbvm:
-                        rel_v = fbvm[cli]
-                        if a in self.e:
-                            for b in rel_v: self.e[a][b] = random.randrange(self.po.adc_min, self.po.adc_max)
-                        else: self.e[a] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in rel_v}
+                        if a in self.e: self.e[a][fbvm[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
+                        else: self.e[a] = {fbvm[cli]:random.randrange(self.po.adc_min, self.po.adc_max)}
                     if cli not in self.ov: self.ov.add(cli)
                     #########################################
                 else: vi[cli] = [a, set()]
@@ -162,10 +178,8 @@ class Matrix:
                 wi = random.choice(list(cav))
                 #########################################
                 if a in fbvm:
-                    rel_v = fbvm[a]
-                    if wi in self.e:
-                        for b in rel_v: self.e[wi][b] = random.randrange(self.po.adc_min, self.po.adc_max)
-                    else: self.e[wi] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in rel_v}
+                    if wi in self.e: self.e[wi][fbvm[a]] = random.randrange(self.po.adc_min, self.po.adc_max)
+                    else: self.e[wi] = {fbvm[a]:random.randrange(self.po.adc_min, self.po.adc_max)}
                 self.ov.add(a)
                 #########################################
             else:
@@ -183,10 +197,8 @@ class Matrix:
         for a in pv_ex:
             cli = (a // self.MV)
             if cli in fbvm:
-                rel_v = fbvm[cli]
-                if a in self.e:
-                    for b in rel_v: self.e[a][b] = random.randrange(self.po.adc_min, self.po.adc_max)
-                else: self.e[a] = {b:random.randrange(self.po.adc_min, self.po.adc_max) for b in rel_v}
+                if a in self.e: self.e[a][fbvm[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
+                else: self.e[a] = {fbvm[cli]:random.randrange(self.po.adc_min, self.po.adc_max)}
             self.ov.add(cli)
         ###########################################
         ##############################################################################################################
