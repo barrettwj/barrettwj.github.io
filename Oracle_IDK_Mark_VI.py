@@ -121,14 +121,12 @@ class Matrix:
         le = len(acts)
         self.ov = set()
         vi = dict()
-        alpha = 2#-musn't be too large!!!--------------------------------------------------------------------------HP
+        alpha = 1#-musn't be too large!!!--------------------------------------------------------------------------HP
         if le > 0:
             mu = (sum(acts.values()) / le)
             vari = (sum(((v - mu) ** 2) for v in acts.values()) / le)#----?????
-            # vari = (sum(((v - mu) ** 2) for v in acts.values()) / max(1, (le - 1)))#----?????
             sigma = (vari ** (1 / 2))
-            # thresh = max(0, (mu - (sigma * alpha)))#----?????
-            thresh = (mu - (sigma * alpha))#----?????
+            thresh = max(0, (mu - (sigma * alpha)))
             elite = [(k, v) for k, v in acts.items() if (v <= thresh)]
             rs = random.sample(range(len(elite)), len(elite))
             aks = [a[0] for a in sorted(elite, key=lambda x: (x[1], rs.pop()))]
@@ -178,7 +176,8 @@ class Matrix:
             if len(ovl) == 0:
                 self.em += 1
                 zr += 1
-                if ((self.ffi != -1) and (a in self.po.m[self.ffi].fbvm)): wi = self.po.m[self.ffi].fbvm[a]#---------helpful??????
+                if ((self.ffi != -1) and (a in self.po.m[self.ffi].fbvm)):
+                    wi = -(self.po.m[self.ffi].fbvm[a] + 1)#----------------------helpful??????
                 else:
                     cav = (ci - self.e.keys())
                     if not cav:
