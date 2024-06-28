@@ -12,7 +12,7 @@ class Oracle:
         ##############################################################################################################
         self.tsp_dim_pct = 0.30#-0.30-----------------------------------------------------------------------HP
         self.tsp_dim = round(self.K * self.tsp_dim_pct)
-        ts_dim = 3#-----------------------------------------------------------------------------------------HP
+        ts_dim = 20#-----------------------------------------------------------------------------------------HP
         self.iv_mask = {(start_idx + a) for a in range(self.K)}
         start_idx += len(self.iv_mask)
         self.bv_mask = {(start_idx + a) for a in range(self.K)}
@@ -41,14 +41,14 @@ class Matrix:
         self.ffi = (mi_in - 1)
         self.fbi = ((mi_in + 1) % self.po.H)
         self.MV = self.po.M
-        self.iv = self.ov = self.av = set()
+        self.iv = self.ov = self.av = self.pv = set()
         self.e = self.fbvm = dict()
         self.em = self.em_prev = self.em_delta_abs = self.forget_period_ct = 0
         self.forget_period = 3#->=1----------------------------------------------------------------------------HP
         self.bv_list = []
     def update(self):
-        fbv = self.po.m[self.fbi].av.copy()
-        # fbv = self.po.m[self.fbi].av.copy() if (self.fbi != 0) else set()
+        # fbv = self.po.m[self.fbi].pv.copy()
+        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
         self.fbvm = {(a // self.MV):-(a + 1) for a in fbv}
         ##############################################################################################################
         cv = self.av.copy()
@@ -82,14 +82,14 @@ class Matrix:
                     if cli not in self.ov: self.ov.add(cli)
                     #########################################
                 else: vi[cli] = [a, set()]
-        pv = {v[0] for v in vi.values()}
+        self.pv = {v[0] for v in vi.values()}
         self.em_prev = self.em
         self.em = sum((len(v[1]) / (self.MV - 1)) for v in vi.values())
         em_norm = len(vi)
         mr = (self.em / max(1, em_norm))
         ##############################################################################################################
         if self.ffi == -1:
-            bv = {(a // self.MV) for a in pv if ((a // self.MV) in self.po.bv_mask)}
+            bv = {(a // self.MV) for a in self.pv if ((a // self.MV) in self.po.bv_mask)}
             data = [((len(v ^ bv) / max(1, (len(v) + len(bv)))), k, v) for k, v in self.po.iv_bv_map.items()]
             rs = random.sample(range(len(data)), len(data))
             bv_sorted = sorted(data, key=lambda x: (x[0], rs.pop()))
@@ -113,7 +113,7 @@ class Matrix:
         pv_ack = set()
         for a in self.iv:
             ci = set(range((a * self.MV), ((a + 1) * self.MV)))
-            ovl = (ci & pv)
+            ovl = (ci & self.pv)
             if len(ovl) == 0:
                 self.em += 1
                 zr += 1
@@ -142,14 +142,16 @@ class Matrix:
         self.em /= max(1, (em_norm + len(self.iv)))
         zr /= max(1, len(self.iv))
         self.em_delta_abs = abs(self.em - self.em_prev)
-        pv_ex = (pv - pv_ack)
+        pv_ex = (self.pv - pv_ack)
         ###########################################
+        """
         for a in pv_ex:
             cli = (a // self.MV)
             if cli in self.fbvm:
                 if a in self.e: self.e[a][self.fbvm[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
                 else: self.e[a] = {self.fbvm[cli]:random.randrange(self.po.adc_min, self.po.adc_max)}
             self.ov.add(cli)
+        """
         ##############################################################################################################
         self.forget_period_ct += 1
         if self.forget_period_ct == self.forget_period:
