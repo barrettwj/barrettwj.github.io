@@ -4,7 +4,7 @@ class Oracle:
         self.H = 3#-----------------------------------------------------------------------------------------HP
         self.M = 53#-53-------------------------------------------------------------------------------------HP
         self.K = 97#-97-------------------------------------------------------------------------------------HP
-        self.adc_max = 47#-37------------------------------------------------------------------------------HP
+        self.adc_max = 37#-37------------------------------------------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.85)
         self.cy = start_idx = 0
         # self.max_int = sys.maxsize# = 2^63 = 9.223372037E18
@@ -43,11 +43,11 @@ class Matrix:
         self.iv = self.ov = self.av = self.pv = set()
         self.e = self.fbvm = dict()
         self.em = self.em_prev = self.em_delta_abs = self.forget_period_ct = 0
-        self.forget_period = 3#->=1----------------------------------------------------------------------------HP
+        self.forget_period = 1#->=1----------------------------------------------------------------------------HP
         self.bv_list = []
     def update(self):
-        # fbv = self.po.m[self.fbi].pv.copy()
-        fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
+        fbv = self.po.m[self.fbi].pv.copy()
+        # fbv = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
         self.fbvm = {(a // self.MV):-(a + 1) for a in fbv}
         ##############################################################################################################
         cv = self.av.copy()
