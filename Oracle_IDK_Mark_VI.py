@@ -6,9 +6,8 @@ class Oracle:
         self.K = 97#-97-------------------------------------------------------------------------------------HP
         self.adc_max = 47#-37------------------------------------------------------------------------------HP
         self.adc_min = round(self.adc_max * 0.85)
-        self.cy = 0
+        self.cy = start_idx = 0
         # self.max_int = sys.maxsize# = 2^63 = 9.223372037E18
-        start_idx = 0
         ##############################################################################################################
         self.tsp_dim_pct = 0.30#-0.30-----------------------------------------------------------------------HP
         self.tsp_dim = round(self.K * self.tsp_dim_pct)
@@ -75,12 +74,7 @@ class Matrix:
                 cli = (a // self.MV)
                 if cli in vi:
                     vi[cli][1].add(a)
-                    #########################################
-                    if cli in self.fbvm:
-                        if a in self.e: self.e[a][self.fbvm[cli]] = random.randrange(self.po.adc_min, self.po.adc_max)
-                        else: self.e[a] = {self.fbvm[cli]:random.randrange(self.po.adc_min, self.po.adc_max)}
                     if cli not in self.ov: self.ov.add(cli)
-                    #########################################
                 else: vi[cli] = [a, set()]
         self.pv = {v[0] for v in vi.values()}
         self.em_prev = self.em
@@ -117,18 +111,15 @@ class Matrix:
             if len(ovl) == 0:
                 self.em += 1
                 zr += 1
-                if ((self.ffi != -1) and (a in self.po.m[self.ffi].fbvm)):
-                    wi = -(self.po.m[self.ffi].fbvm[a] + 1)#----------------------helpful??????
-                else:
+                cav = (ci - self.e.keys())
+                if not cav:
+                    tl = (ci & self.e.keys())
+                    data = [(sum(self.e[b][c] for c in self.e[b].keys()), b) for b in tl]
+                    rs = random.sample(range(len(data)), len(data))
+                    tls = sorted(data, key=lambda x: (x[0], rs.pop()))
+                    del self.e[tls[0][1]]
                     cav = (ci - self.e.keys())
-                    if not cav:
-                        tl = (ci & self.e.keys())
-                        data = [(sum(self.e[b][c] for c in self.e[b].keys()), b) for b in tl]
-                        rs = random.sample(range(len(data)), len(data))
-                        tls = sorted(data, key=lambda x: (x[0], rs.pop()))
-                        del self.e[tls[0][1]]
-                        cav = (ci - self.e.keys())
-                    wi = random.choice(list(cav))
+                wi = random.choice(list(cav))
                 self.ov.add(a)
             else:
                 pv_ack |= ovl
@@ -158,7 +149,7 @@ class Matrix:
             #"""
             tl = list(self.e.keys())
             for a in tl:
-                # if len(self.e[a]) > 20:#---------------------------------------------------------------------HP
+                # if len(self.e[a]) < 250:#---------------------------------------------------------------------HP
                 self.e[a] = {k:(v - 1) for k, v in self.e[a].items() if (v > 0)}
                 if not self.e[a]: del self.e[a]
             #"""
@@ -166,6 +157,6 @@ class Matrix:
         ##############################################################################################################
         bv_string = f"  BVL: {len(self.bv_list):2d}  BVID: {bv_idx:2d}" if self.ffi == -1 else ""
         print(f"M{(self.ffi + 1)}  EM: {self.em:.2f}  EMDA: {self.em_delta_abs:.2f}" +
-        f"  ES: {len(self.e):6d}  PV: {len(self.av):4d}  ZR: {zr:.2f}  MR: {mr:.2f}  PVEX: {len(pv_ex):4d}" + bv_string)
+        f"  ES: {len(self.e):6d}  PV: {len(self.pv):4d}  ZR: {zr:.2f}  MR: {mr:.2f}  PVEX: {len(pv_ex):4d}" + bv_string)
 oracle = Oracle()
 oracle.update()
