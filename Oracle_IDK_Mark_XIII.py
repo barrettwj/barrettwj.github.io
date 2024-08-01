@@ -65,6 +65,7 @@ class Matrix:
         # self.process_inference()
         print(f"M:{(self.ffi + 1)}  EM: {self.em:.2f}  MEM: {len(self.mem)}  NG: {self.num_gen}")
     def process_inference(self):
+        #---------------------------------------------------------------------------------WHICH FORMAT?????
         fbv_mod = {-(a + 1) for a in self.fbv}
         # pv_offset = {(self.po.N + a) for a in self.pv}
         ev_offset = {(self.po.N + a) for a in self.ev}
@@ -73,16 +74,18 @@ class Matrix:
         # self.cv = (self.iv | {-(a + 1) for a in (self.ev ^ self.fbv)})#--------------------------------?????
         # self.cv = self.pv.copy()
         # self.cv = (self.pv | fbv_mod)
-        self.sel_v = self.generate_sel_v(self.cv)
+        # self.sel_v = self.generate_sel_v(self.cv)
+        self.sel_v = self.generate_sel_v_B(self.cv)
         sum_v = self.blank_dv.copy()
         for a in self.sel_v: sum_v = [(x + y) for x, y in zip(sum_v, self.mem[a[0]])]
         self.pv = {i for i, a in enumerate(sum_v) if (a > 0)}
     def generate_sel_v(self, av_in):
-        vp = 0.17#------------------------------------------------------------------------------------HP
+        th = 0.15#------------------------------------------------------------------------------------HP
         out = []
-        sample_dim = 49#-------------------------------------------------------------------------------HP
+        sample_dim_pct = 0.02#------------------------------------------------------------------------HP
+        sample_dim = max(49, round(len(self.mem) * sample_dim_pct))
         num_attempts = 0
-        num_attempts_max = 100#-----------------------------------------------------------------------HP
+        num_attempts_max = 500#-----------------------------------------------------------------------HP
         self.num_gen = 0
         while ((len(out) < sample_dim) and (num_attempts < num_attempts_max)):
             exc_ks = set()
@@ -90,7 +93,7 @@ class Matrix:
             sel_prime = {k:(len(k ^ av_in) / max(1, (len(k) + len(av_in)))) for k in elig_ks}
             sel_prime_inh = {kA:(vA + sum((1 - vB) for kB, vB in sel_prime.items() if (kB != kA))) for kA, vA in sel_prime.items()}
             val = 0
-            vp_met = False
+            th_met = False
             while ((len(exc_ks) < len(sel_prime)) and (len(out) < sample_dim)):
                 d = [(k, (v - val)) for k, v in sel_prime_inh.items() if (k not in exc_ks)]
                 ld = len(d)
@@ -99,8 +102,8 @@ class Matrix:
                 valA = (ds[0][1] / len(sel_prime))#-------------------------------------------------Is this correct?????
                 # valA = (ds[0][1] / ld)#-------------------------------------------------------------Is this correct?????
                 # print(f"{valA:.2f}")
-                if (valA <= vp):
-                    vp_met = True
+                if (valA <= th):
+                    th_met = True
                     wk = ds[0][0].copy()
                     diff_v = (av_in ^ ds[0][0])
                     if len(diff_v) > 0:
@@ -116,7 +119,55 @@ class Matrix:
                     break
                 exc_ks.add(ds[0][0])
                 val += (1 - sel_prime[ds[0][0]])
-            if not vp_met:
+            if not th_met:
+                wk = frozenset(av_in)
+                if wk not in self.mem.keys():
+                    self.mem[wk] = self.blank_dv.copy()
+                    self.num_gen += 1
+                out.append([wk.copy(), 1])#-------------------------------------------------------Is this correct?????
+                # out.append([wk.copy(), 0])#-------------------------------------------------------Is this correct?????
+            num_attempts += 1
+        return out.copy()
+    def generate_sel_v_B(self, av_in):
+        maxval = len(av_in)
+        th = 0.85#------------------------------------------------------------------------------------HP
+        out = []
+        sample_dim_pct = 0.02#------------------------------------------------------------------------HP
+        sample_dim = max(49, round(len(self.mem) * sample_dim_pct))
+        num_attempts = 0
+        num_attempts_max = 100#-----------------------------------------------------------------------HP
+        self.num_gen = 0
+        while ((len(out) < sample_dim) and (num_attempts < num_attempts_max)):
+            exc_ks = set()
+            elig_ks = (set(self.mem.keys()) - {a[0] for a in out})
+            minval = (maxval - ((len(elig_ks) - 1) * maxval))
+            span = max(1, (maxval - minval))
+            sel_prime = {k:len(k & av_in) for k in elig_ks}
+            sel_prime_inh = {kA:(vA - sum(vB for kB, vB in sel_prime.items() if (kB != kA))) for kA, vA in sel_prime.items()}
+            valA = valB = 0
+            while ((len(exc_ks) < len(sel_prime)) and (len(out) < sample_dim) and (valA < th)):
+                d = [(k, (v + valB)) for k, v in sel_prime_inh.items() if (k not in exc_ks)]
+                ld = len(d)
+                rs = random.sample(range(ld), ld)
+                ds = sorted(d, key = lambda x: (x[1], rs.pop()), reverse = True)
+                valA = ((ds[0][1] - minval) / span)
+                if (valA >= th):
+                    wk = ds[0][0].copy()
+                    # diff_v = (av_in ^ ds[0][0])#---------------------------------?????
+                    diff_v = (av_in ^ (ds[0][0] & av_in))#---------------------------------?????
+                    if len(diff_v) > 0:
+                        ri = random.choice(list(diff_v))
+                        wkA = set(ds[0][0])
+                        wkA.remove(ri) if (ri in wkA) else wkA.add(ri)
+                        wk = frozenset(wkA)
+                        self.mem[wk] = self.mem[ds[0][0]].copy()
+                        self.num_gen += 1
+                        del self.mem[ds[0][0]]
+                    # out.append([wk.copy(), ds[0][1]])
+                    out.append([wk.copy(), valA])
+                exc_ks.add(ds[0][0])
+                valB += sel_prime[ds[0][0]]
+            if (valA < th):
                 wk = frozenset(av_in)
                 if wk not in self.mem.keys():
                     self.mem[wk] = self.blank_dv.copy()
