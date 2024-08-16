@@ -1,8 +1,8 @@
 import random
 class Oracle:
     def __init__(self):
-        self.H = 2#-----------------------------------------------------------------------------------------HP
-        self.N = 256#---------------------------------------------------------------------------------------HP
+        self.H = 3#-----------------------------------------------------------------------------------------HP
+        self.N = 512#---------------------------------------------------------------------------------------HP
         self.M = 49#----------------------------------------------------------------------------------------HP
         self.adc_max = 50#-musn't be too high!!!------------------------------------------------------------HP
         self.n_pct = 0.10#----------------------------------------------------------------------------------HP
@@ -21,8 +21,6 @@ class Oracle:
             self.ts_map[frozenset(random.sample(
                 list(self.exov_mask),
                 self.exov_card))] = [len(self.ts_map), set(random.sample(list(self.exiv_mask), self.exiv_card))]
-        # rv = set(random.choice(list(self.ts_map.keys())))
-        # self.rexov = {((a * self.M) + 2) for a in rv}
         ###################################################################################################################
         self.cy = 0
         self.m = [Matrix(self, a) for a in range(self.H)]
@@ -43,16 +41,14 @@ class Matrix:
         self.av = set()
         self.cv = set()
         self.ov = set()
-        self.fbv = set()
+        # self.fbv = set()
         self.fbvm = set()
         self.exov = set()
         self.em = self.em_prev = self.em_delta = 0
     def update(self):
         ########################################################################################################################
         fbv_raw = self.po.m[self.fbi].pv.copy() if (self.fbi != 0) else set()
-        # self.fbv = fbv_raw.copy()
-        self.fbv = {-(a + 1) for a in fbv_raw}
-        # self.fbvm = {(a // self.po.M):-(a + 1) for a in self.fbv}
+        # self.fbv = {-(a + 1) for a in fbv_raw}
         self.fbvm = {-((a // self.po.M) + 1) for a in fbv_raw}
         ########################################################################################################################
         self.process_inference()
@@ -68,6 +64,7 @@ class Matrix:
             self.iv |= ds[0][1]
         else: self.iv = self.po.m[self.ffi].ov.copy()
         ########################################################################################################################
+        self.em_prev = self.em
         self.em = 0
         zr = 0
         mr = 0
@@ -101,14 +98,14 @@ class Matrix:
                 else:
                     if (wi in self.e):
                         for b in self.cv: self.e[wi][b] = self.po.adc_max
-                    else:self.e[wi] = {b:self.po.adc_max for b in self.cv}   
+                    else: self.e[wi] = {b:self.po.adc_max for b in self.cv}   
             self.av.add(wi)
         self.em /= max(1, len(self.iv))
+        self.em_delta = (self.em - self.em_prev)
         pv_exc = (self.pv - pv_ack)
         #########################################################################################################################
         if (len(self.e) > self.e_cap):
             ec = self.e.copy()
-            # ec = {k:v for k, v in self.e.items() if (k not in self.cv)}
             for kA in ec.keys():
                 self.e[kA] = {kB:(vB - 1) for kB, vB in self.e[kA].items() if (vB > 0)}
                 if not self.e[kA]: del self.e[kA]
@@ -127,7 +124,6 @@ class Matrix:
               f"  ZR: {str(zr).rjust(2)}  MR: {str(mr).rjust(2)}" + bv_str)
         ########################################################################################################################
     def process_inference(self):
-        # self.cv = (self.iv | {(a + self.po.N) for a in self.av} | {(a + (self.po.N * 2)) for a in self.fbv})
         self.cv = (self.iv | {(a + self.po.N) for a in self.av} | {(a + self.po.N + self.po.K) for a in self.fbvm})
         # self.cv = (self.iv | {(a + self.po.N) for a in self.av} | self.fbvm)
         # self.cv = (self.av | self.fbvm)
@@ -141,11 +137,8 @@ class Matrix:
         #######################################################################################################################
         if (self.ffi == -1):
             tv = ({(a // self.po.M) for a in self.pv} & self.po.exov_mask)
-            # if (len(self.exov) == 0):
-            # if (random.randrange(1000000) < 100000):
             if (len(tv) < self.po.exov_card):
-                    self.pv |= {((a * self.po.M) + 2) for a in random.choice(list(self.po.ts_map.keys()))}
-                    # self.pv |= self.po.rexov
-                    # print(self.po.cy)
+                rv = set(random.choice(list(self.po.ts_map.keys())))
+                self.pv |= {((a * self.po.M) + 2) for a in rv}
 oracle = Oracle()
 oracle.update()
