@@ -7,7 +7,7 @@ class Oracle:
         self.M = 50#----------------------------------------------------------------------------------------HP
         self.K = (self.N * self.M)
         self.adc_max = 200#---------------------------------------------------------------------------------HP
-        self.q_pct = 0.37#----------------------------------------------------------------------------------HP
+        self.q_pct = 0.11#----------------------------------------------------------------------------------HP
         self.Q = round(self.N * self.q_pct)
         self.ts_dim = 3#------------------------------------------------------------------------------------HP
         self.ts_map = dict()
@@ -49,15 +49,15 @@ class Matrix:
         bv_idx = -1
         if (self.ffi == -1):
             # pv_cli_v = set()
-            # pv_conf_v = set()
-            # for a in self.pv:
-            #     cli = (a // self.po.M)
-            #     tv = (self.pv & set(range((cli * self.po.M), ((cli + 1) * self.po.M))))
-            #     if (len(tv) == 1):
-            #         pv_cli_v.add(cli)
-            #         pv_conf_v.add(a)
-            # d = [((len(pv_conf_v ^ k) / max(1, (len(pv_conf_v) + len(k)))), v) for k, v in self.po.ts_map.items()]
-            d = [((len(self.pv ^ k) / max(1, (len(self.pv) + len(k)))), v) for k, v in self.po.ts_map.items()]
+            pv_conf_v = set()
+            for a in self.pv:
+                cli = (a // self.po.M)
+                tv = (self.pv & set(range((cli * self.po.M), ((cli + 1) * self.po.M))))
+                if (len(tv) == 1):
+                    # pv_cli_v.add(cli)
+                    pv_conf_v.add(a)
+            d = [((len(pv_conf_v ^ k) / max(1, (len(pv_conf_v) + len(k)))), v) for k, v in self.po.ts_map.items()]
+            # d = [((len(self.pv ^ k) / max(1, (len(self.pv) + len(k)))), v) for k, v in self.po.ts_map.items()]
             rs = random.sample(range(len(d)), len(d))
             ds = sorted(d, key = lambda x: (x[0], rs.pop()))
             bv_idx = ds[0][1][0]
@@ -82,6 +82,9 @@ class Matrix:
                     del self.e[ds[0][1]]
                     cav = (ci - self.e.keys())
                 wi = random.choice(list(cav))
+                if a in self.fbvm:
+                    idx = self.fbvm[a]
+                    for b in (ci & self.e.keys()): self.e[b][idx] = self.po.adc_max
             else:
                 pv_ack |= ovl
                 wi = ovl.pop()
@@ -101,7 +104,7 @@ class Matrix:
         zr /= norm
         mr /= norm
         pv_exc = (self.pv - pv_ack)
-        bv_str = "" if (bv_idx == -1) else f"  BV: {str(bv_idx).rjust(3)}"
+        bv_str = "" if (bv_idx == -1) else f"  BV: {str(bv_idx).rjust(2)}"
         print(f"M:{(self.ffi + 1)}  EM: {str(f'{self.em:.2f}').rjust(4)}  ME: {str(len(self.e)).rjust(6)}" +
               f"  ZR: {str(f'{zr:.2f}').rjust(4)}  MR: {str(f'{mr:.2f}').rjust(4)}  OF: {str(of).rjust(4)}  AV: {str(len(self.av)).rjust(6)}" + 
               f"  PV: {str(len(self.pv)).rjust(4)}  EX: {str(len(pv_exc)).rjust(4)}  TH: {str(f'{self.thresh:.2f}').rjust(4)}" + bv_str)
