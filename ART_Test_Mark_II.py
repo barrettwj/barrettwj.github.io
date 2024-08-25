@@ -5,39 +5,32 @@ max_val = 50#-------------------------------------------------------------------
 min_val = -(max_val - 1)
 mem_cap = 200#--------------------------------------------------------------------------------------------------HP
 mem_potential_idxs = set(range(mem_cap))
-adc_max = 10000#--------------------------------------------------------------------------------------------HP
-mem = {-1:[[random.randint(min_val, max_val) for _ in range(N)], adc_max]}
-max_delta = (max_val - min_val)
-ts_dim = 200#-----------------------------------------------------------------------------------------------HP
+adc_max = 1000#--------------------------------------------------------------------------------------------HP
+mem = dict()
+# max_delta = (max_val - min_val)
+max_delta = ((max_val - min_val) * N)
+ts_dim = 500#-----------------------------------------------------------------------------------------------HP
 ts = [[random.randint(min_val, max_val) for _ in range(N)] for _ in range(ts_dim)]
 ts_idx = cy = 0
 vp = 0.01#-------------------------------------------------------------------------------------------------HP
-# min_act_val = (vp + 1)
-# while (min_act_val > vp):
-while True:
+min_act_val = (vp + 1)
+while (min_act_val > vp):
+# while True:
     cv = ts[ts_idx].copy()
     skip = set()
     finished = False
     rate_A = rate_B = rate_C = inc_val = min_act_k = 0
-    A = {k:(sum((abs(x - y) / max_delta) for x, y in zip(cv, v[0])) / N) for k, v in mem.items()}
+    mem_dim_def = (3 - len(mem))#--------------------------------------------------------------------------HP
+    if (mem_dim_def > 0):
+        for _ in range(mem_dim_def):
+            avail_idxs = (mem_potential_idxs - mem.keys())
+            mem[random.choice(list(avail_idxs))] = [[random.randint(min_val, max_val) for _ in range(N)], adc_max]
+    # A = {k:(sum((abs(x - y) / max_delta) for x, y in zip(cv, v[0])) / N) for k, v in mem.items()}
+    A = {k:sum((abs(x - y) / max_delta) for x, y in zip(cv, v[0])) for k, v in mem.items()}
     B = {kA:(vA + sum((1 - vB) for kB, vB in A.items() if (kB != kA))) for kA, vA in A.items()}
     norm_B = len(B)
     while not finished:
         C = {kA:(vA - inc_val) for kA, vA in B.items() if (kA not in skip)}
-
-        """
-        if (len(C) < 3):#---------------------------------------------------------------------------HP
-            avail_idxs = (mem_potential_idxs - mem.keys())
-            mem[random.choice(list(avail_idxs))] = [cv.copy(), adc_max]
-            if (len(mem) > mem_cap):
-                d = [(k, v[1]) for k, v in mem.items()]
-                rs = random.sample(range(len(d)), len(d))
-                ds = sorted(d, key = lambda x: (x[1], rs.pop()))
-                del mem[ds[0][0]]
-            rate_C += 1
-            break
-        """
-
         min_act_val = min(C.values())
         for k, v in C.items():
             if (v == min_act_val): min_act_k = k
