@@ -1,20 +1,22 @@
 import random
 N = 1024#------------------------------------------------------------------------------------------------------HP
-max_val = 50#--------------------------------------------------------------------------------------------------HP
+max_val = 128#--------------------------------------------------------------------------------------------------HP
 # min_val = -max_val
 min_val = -(max_val - 1)
-mem_cap = 200#--------------------------------------------------------------------------------------------------HP
+mem_cap = 300#--------------------------------------------------------------------------------------------------HP
 mem_potential_idxs = set(range(mem_cap))
 adc_max = 1000#--------------------------------------------------------------------------------------------HP
 mem = dict()
 # max_delta = (max_val - min_val)
 max_delta = ((max_val - min_val) * N)
-ts_dim = 500#-----------------------------------------------------------------------------------------------HP
+ts_dim = 200#-----------------------------------------------------------------------------------------------HP
 ts = [[random.randint(min_val, max_val) for _ in range(N)] for _ in range(ts_dim)]
+ts_min_act = dict()
 ts_idx = cy = 0
-vp = 0.01#-------------------------------------------------------------------------------------------------HP
-min_act_val = (vp + 1)
-while (min_act_val > vp):
+thresh = 0.01#-------------------------------------------------------------------------------------------------HP
+min_act_val = (thresh + 1)
+# while (min_act_val > vp):
+while (len(ts_min_act) < len(ts)):
 # while True:
     cv = ts[ts_idx].copy()
     skip = set()
@@ -37,7 +39,7 @@ while (min_act_val > vp):
         min_act_val /= norm_B
         for k in mem.keys():
             if (mem[k][1] > 0): mem[k][1] -= 1
-        if (min_act_val <= vp):
+        if (min_act_val <= thresh):
             diff_v = [((x - y) * 0.001) for x, y in zip(cv, mem[min_act_k][0])]#-------------------------------------------HP
             new_v = []
             for x, y in zip(diff_v, mem[min_act_k][0]):
@@ -56,13 +58,19 @@ while (min_act_val > vp):
                     ds = sorted(d, key = lambda x: (x[1], rs.pop()))
                     del mem[ds[0][0]]
                 avail_idxs = (mem_potential_idxs - mem.keys())
-                mem[random.choice(list(avail_idxs))] = [cv.copy(), adc_max]
+                noise_range = 3.99#---------------------------------------------------------------------------------------------HP
+                crc = [(a + (a * random.choice([-noise_range, noise_range]) * random.random())) for a in cv]
+                mem[random.choice(list(avail_idxs))] = [crc.copy(), adc_max]
+                # mem[random.choice(list(avail_idxs))] = [cv.copy(), adc_max]
                 rate_C += 1
                 finished = True
             else:
                 rate_B += 1
                 inc_val += (1 - A[min_act_k])
                 skip.add(min_act_k)
-    print(f"CY: {cy}  RA: {rate_A}  RB: {rate_B}  RC: {rate_C}  ME: {len(mem)} MA: {min_act_val:.4f}")
+    # print(f"CY: {cy}  RA: {rate_A}  RB: {rate_B}  RC: {rate_C}  ME: {len(mem)} MA: {min_act_val:.4f}")
+    ts_min_act[ts_idx] = min_act_val
     cy += 1
     ts_idx = ((ts_idx + 1) % len(ts))
+for k, v in ts_min_act.items():
+    print(f"ID: {k}  MV: {v:.4f}")
