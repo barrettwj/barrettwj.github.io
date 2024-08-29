@@ -1,41 +1,60 @@
 import random
-N = 24#------------------------------------------------------------------------------------------------------HP
-max_val = 200#-----------------------------------------------------------------------------------------------HP
+################################################################################################################################
+N = 256#-----------------------------------------------------------------------------------------------------HP
+M = 50#------------------------------------------------------------------------------------------------------HP
+mem_max_dim = 200#-------------------------------------------------------------------------------------------HP
+mem_min_dim = 3#---------------------------------------------------------------------------------------------HP
+mem_potential_idcs = set(range(mem_max_dim))
+max_val = mem_max_dim#---------------------------------------------------------------------------------------HP
 min_val = 0
 span = (max_val - min_val)
-mem_cap = 200#-----------------------------------------------------------------------------------------------HP
-mem_potential_idcs = set(range(mem_cap))
-adc_max = 100000#--------------------------------------------------------------------------------------------HP
-mem = dict()
+delta_thresh_pct = 0.005#-------------------------------------------------------------------------------------HP
+delta_thresh = (span * delta_thresh_pct)
 max_delta = (span * N)
-ts_dim = 3#--------------------------------------------------------------------------------------------------HP
+thresh = 0.008#-0.009----------------------------------------------------------------------------------------HP
+adc_max = 1000#----------------------------------------------------------------------------------------------HP
+rsA = random.sample(range(mem_max_dim), mem_max_dim)
+mem = dict()
+mk = mk_p = mkt = mkt_p = -1
+cy = 0
+################################################################################################################################
+ts_dim = 37#-------------------------------------------------------------------------------------------------HP
 ts = [[random.randint(min_val, max_val) for _ in range(N)] for _ in range(ts_dim)]
-ts_idx = cy = avg_diff = diff = emv = rA = rB = rC = 0
-thresh = 0.010#----------------------------------------------------------------------------------------------HP
-delta_thresh = 10#-------------------------------------------------------------------------------------------HP
-skip = dict()
+ts_idx = 0
+################################################################################################################################
 act_v_prev = {k:0 for k in range(ts_dim)}
 act_v = dict()
-rsA = random.sample(range(mem_cap), mem_cap)
-act_hist_depth = 100
+avg_diff = 0
+act_hist_depth = 7
 act_hist = []
 while True:
     exiv = ts[ts_idx].copy()
-    mem_min_dim = 3#-----------------------------------------------------------------------------------------HP
+    ############################################################################################################################
     mem_dim_def = (mem_min_dim - len(mem))
     if (mem_dim_def > 0):
         for _ in range(mem_dim_def):
             avail_idcs = (mem_potential_idcs - mem.keys())
-            mem[random.choice(list(avail_idcs))] = [([0] * N), adc_max]
-    ###################################################################
+            mem[random.choice(list(avail_idcs))] = [([0] * N), adc_max, dict()]
+    ############################################################################################################################
+    mem_dim_exc = (len(mem) - mem_max_dim + 5)#---------------------------------------------------------------HP
+    if (mem_dim_exc > 0):
+        for _ in range(mem_dim_exc):
+            for k, v in mem.items():
+                if (v[1] > 0): v[1] -= 1
+            dC = [(k, v[1]) for k, v in mem.items()]
+            rs = rsA.copy()
+            dsC = sorted(dC, key = lambda x: (x[1], rs.pop(0)))
+            del mem[dsC[0][0]]
+    ############################################################################################################################
+    mk_prev = mk
     A = {k:sum((abs(x - y) / max_delta) for x, y in zip(exiv, v[0])) for k, v in mem.items()}
     B = {kA:(vA + sum((1 - vB) for kB, vB in A.items() if (kB != kA))) for kA, vA in A.items()}
     norm = len(B)
-    dA = [(k, v) for k, v in B.items()]
+    dA = [(k, (v / norm)) for k, v in B.items()]
     rs = rsA.copy()
-    dsA = sorted(dA, key = lambda x: (x[1], rs.pop()))
-    mk, mv = dsA[0][0], (dsA[0][1] / norm)
-    ###################################################################
+    dsA = sorted(dA, key = lambda x: (x[1], rs.pop(0)))
+    mk, mv = dsA[0][0], dsA[0][1]
+    ############################################################################################################################
     skip = dict()
     novum = False
     rA = rB = rC = 0
@@ -43,58 +62,84 @@ while True:
         mem[mk][1] = adc_max
         skip[mk] = (1 - A[mk])
         disinh = sum(skip.values())
-        dB = [(k, (v - disinh)) for k, v in B.items() if (k not in skip.keys())]
+        dB = [(k, ((v - disinh) / norm)) for k, v in B.items() if (k not in skip.keys())]
         ld = len(dB)
         if (ld == 0):
             rA += 1
             avail_idcs = (mem_potential_idcs - mem.keys())
             mk, mv = random.choice(list(avail_idcs)), 0
-            mem[mk] = [exiv.copy(), adc_max]
+            mem[mk] = [exiv.copy(), adc_max, dict()]
             novum = True
             break
         if (ld == 1):
             rB += 1
-            mk, mv = dB[0][0], (dB[0][1] / norm)
+            mk, mv = dB[0][0], dB[0][1]
         if (ld > 1):
             rC += 1
             rs = rsA.copy()
-            dsB = sorted(dB, key = lambda x: (x[1], rs.pop()))
-            mk, mv = dsB[0][0], (dsB[0][1] / norm)
-    ################################################################
+            dsB = sorted(dB, key = lambda x: (x[1], rs.pop(0)))
+            mk, mv = dsB[0][0], dsB[0][1]
+    #############################################################################################################################
     if not novum:
         mem[mk][1] = adc_max
+        multA = 0.01#--------------------------------------------------------------------------------------------HP
+        # if (mk == pv): multA *= 10.0
+        multB = (multA * 5.0)#-----------------------------------------------------------------------------------HP
         for i, a in enumerate(exiv):
             delta = (a - mem[mk][0][i])
-            if (abs(delta) > delta_thresh): mem[mk][0][i] = (mem[mk][0][i] + (delta * 0.10))#----------------------HP
-            # if (abs(delta) < delta_thresh): mem[mk][0][i] = a
-            # else: mem[mk][0][i] = (mem[mk][0][i] + (delta * 0.80))#------------------------------------------------HP
-    ################################################################
-    period_set = set()
-    act_v[ts_idx] = mk
-    if (len(act_v) == len(ts)):
+            if (abs(delta) > delta_thresh):
+                mem[mk][0][i] += (delta * multA)
+                for b in skip:
+                    val = (mem[b][0][i] + ((mem[b][0][i] - a) * multB))
+                    if val < min_val: val = min_val
+                    if val > max_val: val = max_val
+                    mem[b][0][i] = val
+    #############################################################################################################################
+    for kA, vA in mem.items():
+        td = vA[2].copy()
+        for kB, vB in vA[2].items():
+            if ((vB == mkt) and (kA != mk)): del td[kB]
+        mem[kA][2] = td.copy()
+    pes = " F"        
+    if (mkt_p not in mem[mk][2].keys()):
+        idx_range = set(range((mk * M), ((mk + 1) * M)))
+        avail_idx = (idx_range - mem[mk][2].keys())
+        new_idx = random.choice(list(avail_idx)) if (avail_idx) else random.choice(list(idx_range))
+        mem[mk][2][new_idx] = mkt
+        mkt = new_idx
+    else:
+        mkt = mkt_p
+        pes = "T  "
+    mkt_p = -1
+    for kA, vA in mem.items():
+        p_set = {kB for kB, vB in vA[2].items() if (vB == mkt)}
+        if (p_set):
+            mkt_p = p_set.pop()
+            for a in p_set: del mem[kA][2][a]#-----------------------------necessary?????----helpful?????
+    if (mkt_p == -1):
+        rmi = random.choice(list(mem.keys()))
+        idx_range = set(range((rmi * M), ((rmi + 1) * M)))
+        avail_idx = (idx_range - mem[rmi][2].keys())
+        new_idx = random.choice(list(avail_idx)) if (avail_idx) else random.choice(list(idx_range))
+        mkt_p = new_idx
+    #############################################################################################################################
+    if ts_idx not in act_v: act_v[ts_idx] = mk
+    else:
         act_hist.append((act_v.copy(), act_v_prev.copy()))
         act_v_prev = act_v.copy()
         act_v = dict()
         if (len(act_hist) == act_hist_depth):
             avg_diff = 0
             for i, a in enumerate(act_hist):
-                diff = (sum(1 for k, v in a[0].items() if (v == a[1][k])) / len(ts))
-                if (diff > 0.90): period_set.add(i)
+                diff = (sum(1 for k, v in a[0].items() if (v == a[1][k])) / len(a[0]))
                 avg_diff += diff
-            avg_diff /= act_hist_depth
+            avg_diff /= len(act_hist)
             act_hist = []
-    # if (len(period_set) > 0): print(len(period_set))
-    ################################################################
-    print(f"ID: {str(ts_idx).rjust(3)}  MK: {str(mk).rjust(4)}  MV: {str(f'{mv:.4f}').rjust(5)}  ML: {str(len(mem)).rjust(4)}" + 
-          f"  DF: {str(f'{avg_diff:.4f}').rjust(5)}  SK: {str(len(skip)).rjust(3)}" +
-          f"  RA: {str(rA).rjust(3)}  RB: {str(rB).rjust(3)}  RC: {str(rC).rjust(3)}")
-    ################################################################
-    # if (len(mem) > -1):#---------------------------------------------------------------------------------------------HP
-    #     for k, v in mem.items():
-    #         if (v[1] > 0): mem[k][1] -= 1
-    #     dC = [(k, v[1]) for k, v in mem.items()]
-    #     rs = rsA.copy()
-    #     dsC = sorted(dC, key = lambda x: (x[1], rs.pop()))
-    #     del mem[dsC[0][0]]
+    #############################################################################################################################
+    if cy > -1:
+        print(f"ID: {str(ts_idx).rjust(3)}  MK: {str(mk).rjust(4)}  MV: {str(f'{mv:.4f}').rjust(5)}  ML: {str(len(mem)).rjust(4)}" + 
+            f"  DF: {str(f'{avg_diff:.2f}').rjust(4)}  SK: {str(len(skip)).rjust(3)}  PE: {pes.rjust(3)}  PV: {str(mkt_p).rjust(4)}" +
+            f"  RA: {str(rA).rjust(3)}  RB: {str(rB).rjust(3)}  RC: {str(rC).rjust(3)}")
+    #############################################################################################################################
     ts_idx = ((ts_idx + 1) % len(ts))
     cy += 1
