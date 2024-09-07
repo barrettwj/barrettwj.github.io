@@ -5,9 +5,9 @@ M = 50#-------------------------------------------------------------------------
 mem_max_dim = 200#-------------------------------------------------------------------------------------------HP
 mem_min_dim = 3#---------------------------------------------------------------------------------------------HP
 mem_potential_idcs = set(range(mem_max_dim))
-max_val = 128#-----------------------------------------------------------------------------------------------HP
+max_val = 7#-----------------------------------------------------------------------------------------------HP
 min_val = -(max_val - 1)#------------------------------------------------------------------------------------HP
-# min_val = 120
+# min_val = 0
 abs_delta_range = (max_val - min_val)
 max_delta = (abs_delta_range * N)
 blank_v = ([(min_val + (abs_delta_range / 2))] * N)
@@ -63,7 +63,7 @@ while True:
         for _ in range(mem_dim_exc):
             dC = [(k, v[1][1]) for k, v in mem.items()]
             rs = rsA.copy()
-            dsC = sorted(dC, key = lambda x: (x[1], rs.pop(0)), reverse = True)
+            dsC = sorted(dC, key = lambda x: (x[1], rs.pop()), reverse = True)
             if (dsC[0][1] > 1): del mem[dsC[0][0]]#----------------------------------------------------------------HP
     ############################################################################################################################
     mk_prev = mk
@@ -72,38 +72,33 @@ while True:
     norm = len(B)
     dA = [(k, (v / norm)) for k, v in B.items()]
     rs = rsA.copy()
-    dsA = sorted(dA, key = lambda x: (x[1], rs.pop(0)))
+    dsA = sorted(dA, key = lambda x: (x[1], rs.pop()))
     mk, mv = dsA[0][0], dsA[0][1]
     ############################################################################################################################
     skip = dict()
-    skip_order = dict()
-    novum = False
     rA = rB = rC = rD = 0
-    while (mv > thresh):
+    while ((len(dA) > 0) and (mv > thresh)):
         mem[mk][1][1] = mem[mk][1][0]
         mem[mk][1][0] = 0
         skip[mk] = (1 - A[mk])
-        skip_order[mk] = len(skip_order)
         disinh = sum(skip.values())
-        dB = [(k, ((v - disinh) / norm)) for k, v in B.items() if (k not in skip.keys())]
-        ld = len(dB)
+        dA = [(k, ((v - disinh) / norm)) for k, v in B.items() if (k not in skip.keys())]
+        ld = len(dA)
         if (ld == 0):
             rA += 1
             avail_idcs = (mem_potential_idcs - mem.keys())
             mk, mv = random.choice(list(avail_idcs)), 0
             mem[mk] = [exiv.copy(), [0, 0], dict()]
-            novum = True
-            break
         if (ld == 1):
             rB += 1
-            mk, mv = dB[0][0], dB[0][1]
+            mk, mv = dA[0][0], dA[0][1]
         if (ld > 1):
             rC += 1
             rs = rsA.copy()
-            dsB = sorted(dB, key = lambda x: (x[1], rs.pop(0)))
-            mk, mv = dsB[0][0], dsB[0][1]
+            dsA = sorted(dA, key = lambda x: (x[1], rs.pop()))
+            mk, mv = dsA[0][0], dsA[0][1]
     #############################################################################################################################
-    if not novum:
+    if (rA == 0):
         mem[mk][1][1] = mem[mk][1][0]
         mem[mk][1][0] = 0
         for i, a in enumerate(exiv):
@@ -174,7 +169,7 @@ while True:
     if (forget_period_ct == forget_period):
         dC = [(k, v[1][1]) for k, v in mem.items()]
         rs = rsA.copy()
-        dsC = sorted(dC, key = lambda x: (x[1], rs.pop(0)), reverse = True)
+        dsC = sorted(dC, key = lambda x: (x[1], rs.pop()), reverse = True)
         if (dsC[0][1] > 100): del mem[dsC[0][0]]#-------------------------------------------------------------------------HP
         forget_period_ct = 0
     #############################################################################################################################
