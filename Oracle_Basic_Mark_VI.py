@@ -1,43 +1,62 @@
 import random
-H = 5#------------------------------------------------------------------------------------------------HP
+import math
+H = 6#------------------------------------------------------------------------------------------------HP
 K = 1737#--------------------------------------------------------------------------------------------HP
 nw = [random.randrange(-K, K) for _ in range(H + 1)]
 nwc = nw.copy()
 nwl = len(nw)
 trm = dict()
 w = len(str(K)) + 1
-ts_len = 4
-ts = list(range(ts_len))
-ts_idx = -10
-ts_idx_prev = -20
-var = var_prev = 0
-i = 0
+ts_len = 17
+# ts = list(range(ts_len))
+ts = random.sample(range(ts_len), ts_len)
+ts_idx = 1
+i = em = em_prev = ts_idx_prev = 0
 rs = random.sample(range(1000000), 1000000)
-# def wrap_value(val, minval, maxval): return (((val - minval) % (maxval - minval + 1)) + minval)
+ps = False
 while True:
-    fb = nw[(i + 1) % nwl]
-    no_pv = (nw[(i - 1) % nwl] - nw[i] + fb)
-    pv = (fb - nw[(i + 2) % nwl])
-    gradient_pct = 0.99#------------------------------------------------------------------------------HP
-    gradient = round((pv - no_pv) * gradient_pct)
     if i == 0:
-        tl = [abs(x - y) for x, y in zip(nw[1:], nwc[1:])]
+        # tl = [abs(x - y) for x, y in zip(nw[1:], nwc[1:])]
+        tl = [(x - y) for x, y in zip(nw[1:], nwc[1:])]
         nwc = nw.copy()
-        mean = sum(tl) / len(tl)
-        var_prev = var
+        ssum = sum(tl)
+        mean = ssum / len(tl)
         var = sum((x - mean) ** 2 for x in tl) / len(tl)
-        print(" | ".join([f"{x:>{w}}" for x in nw]) + f"  IS: {f'{var:.2f}'.rjust(6)}")
-        trm[(ts_idx_prev, ts_idx)] = var_prev - var
+        em_prev = em
+        em = var
+        ps_str = "  PS" if ps else ""
+        ps = False
+        print(" | ".join([f"{x:>{w}}" for x in nw]) + f"  EM: {f'{em:.2f}'.rjust(6)}" + ps_str)
+        # print(" | ".join([f"{f'{x:.2f}'.rjust(6)}" if a > 0 else f"{x:>{w}}" for a, x in enumerate(nw)]) +
+        #       f"  EM: {f'{em:.2f}'.rjust(6)}" + ps_str)
+        trm[(ts_idx_prev, ts_idx)] = em_prev - em
         ts_idx_prev = ts_idx
-        d = [(k[1], v) for k, v in trm.items() if (k[0] == ts_idx and v < 0)]
-        # d = []
-        if d:
-            rst = rs.copy()
-            ds = sorted(d, key = lambda x: (x[1], rst.pop()))
-            ts_idx = ds[0][0]#-------policy selection
+        # d = [(k[1], v) for k, v in trm.items() if k[0] == ts_idx and v < 0]
+        d = []
+        if len(d) > 0:
+            ps = True
+            if len(d) > 1:
+                rst = rs.copy()
+                d = sorted(d, key = lambda x: (x[1], rst.pop()))
+            ts_idx = d[0][0]#----------------policy selection
         else:
-            ts_idx = no_pv + gradient#-------------Agency Enabled
-            # ts_idx += 1#-------------------Agency Disabled
-        nw[i] = ts[ts_idx % ts_len]
-    else: nw[i] = no_pv + gradient
-    i = (i + 1) % H
+            # ts_idx = (ts_idx + nw[1]) % ts_len
+            ts_idx = round(ts_idx + nw[1]) % ts_len
+            # ts_idx = (ts_idx + 1) % ts_len
+            # ts_idx = random.choice(list(range(ts_len)))
+        # ts_idx = round(ts_idx)
+        # ts_idx = math.floor(ts_idx)
+        # nw[i] = ts_idx
+        nw[i] = ts[ts_idx]
+    else:
+        fb = nw[i + 1] if i < (nwl - 1) else 0
+        error = nw[i - 1] - nw[i]
+        no_pv = error + fb
+        dfb = nw[i + 2] if i < (nwl - 2) else 0
+        pv = nw[i] - nw[i - 1] - dfb
+        # pv = -(error + dfb)
+        gradient_pct = 0.47#------------------------------------------------------------------------------HP
+        gradient = round(pv * gradient_pct)
+        # gradient = pv * gradient_pct
+        nw[i] = no_pv + gradient
+    i = (i + 1) % nwl
