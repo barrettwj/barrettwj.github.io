@@ -7,7 +7,8 @@ class Oracle:
         self.K_pct = 0.60#--------------------------------------------------------------------------------------HP
         self.K = round(self.N * self.K_pct)
         ###################################################################
-        self.eff_dim = 4
+        self.eff_dim_pct = 0.50#--------------------------------------------------------------------------------HP
+        self.eff_dim = round(self.N * self.eff_dim_pct)
         self.effv_mask = set(range(self.eff_dim))
         self.effv_card = round(len(self.effv_mask) * self.K_pct)
         self.affv_mask = set(range(self.N)) - self.effv_mask
@@ -33,21 +34,28 @@ class Matrix:
         self.effv = set()
         self.affv = set()
         #####################################################
-        self.em = 0
+        self.em = self.em_prev = self.em_delta = 0
+        self.pvds_dim = 25#----------------------------------------------------------------------------------HP
+        self.pvds = []
     def update(self):
         ###########################################################################################################################
         # fb = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else {0, 2, 4}#-innate prior?
-        fb = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else set()#-degenerate prior?
-        # fb = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else self.po.exv.copy()#-resonance?
+        fb = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else set()#-reflection
+        # fb = self.po.m[self.fbi].pv.copy() if self.fbi != 0 else self.po.exv.copy()#-autoresonance?
         ###########################################################################################################################
+        pvd = self.pv.copy()
         if self.ffi == -1:
             #######################################################################################################
+            self.em_prev = self.em
             self.em = (self.em / self.po.H)
+            self.em_delta = self.em - self.em_prev
+            #######################################################################################################
             tl = [f"C: {self.po.cy:>{10}}", "".join('1' if x in self.po.exv else '0' for x in range(self.po.N))]
             tl.extend(["".join('1' if x in y.pv else '0' for x in range(self.po.N)) for y in self.po.m])
             tl.append(f"EM: {f'{self.em:.2f}'.rjust(4)}")
             tl.append(f"BL: {str(len(self.po.bv_map)).rjust(3)}")
             print(" | ".join(tl))
+            #######################################################################################################
             self.em = 0
             #######################################################################################################
             # self.po.exv = self.po.exv ^ self.pv
@@ -56,7 +64,7 @@ class Matrix:
             effv_fs = frozenset(self.effv)
             if effv_fs in self.po.bv_map: self.po.exv = self.po.bv_map[effv_fs].copy()
             else:
-                if len(self.po.bv_map) < self.po.bv_map_max:
+                if len(self.po.bv_map) < self.po.bv_map_max:#------make changes to aff signals proportional to changes in eff signals!!!!
                     na_max = 1000
                     na = 0
                     # nv = set(random.sample(list(self.po.affv_mask), self.po.affv_card))
@@ -76,11 +84,20 @@ class Matrix:
             ####################################################################################################
         else: self.pv = (self.po.m[self.ffi].pv - self.pv) ^ fb
         ##############################################################################################################################
-        if self.pv == fb:
-            self.em += 1
-            ri = random.choice(list(self.po.effv_mask))
-            if ri in self.pv: self.pv.remove(ri)
-            else: self.pv.add(ri) 
+        pvd ^= self.pv
+        self.pvds.append(len(pvd))
+        if len(self.pvds) == self.pvds_dim:
+            pvdm = sum(self.pvds) / len(self.pvds)
+            if pvdm < 3:#-------------------------musn't be set too low!!!--------------------------------------HP
+                ri = random.choice(list(self.po.effv_mask))#------------which one???
+                # ri = random.choice(list(range(self.po.N)))#-------------which one???---this one causes much more error!!!!
+                if ri in self.pv: self.pv.remove(ri)
+                else: self.pv.add(ri)
+            self.pvds.pop(0)
+        ###############################################################################################################################
+        # self.em += (len(self.pv ^ fb) / self.po.N)#-current error
+        # self.em += (len(fb - self.pv) / self.po.N)#-next error
+        self.em += (((len(self.pv ^ fb) / self.po.N) + (len(fb - self.pv) / self.po.N)) / 2)
         ###############################################################################################################################
 oracle = Oracle()
 oracle.update()
