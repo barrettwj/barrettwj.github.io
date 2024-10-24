@@ -4,22 +4,23 @@ env = gym.make("Pendulum-v1", render_mode = "human", g = 9.81)#-9.81
 class Oracle:
     def __init__(self):        
         ###############################################################################
-        self.H = 5#---------------------------------------------------------------------------------------------HP
+        self.H = 3#---------------------------------------------------------------------------------------------HP
         ###############################################################################
         self.env_seed = 123456#---------------------------------------------------------------------------------HP
         ###############################################################################
         self.trc = TRC()
         ###############################################################################
         self.act_card = 2#---------------------------------------------------------------------------------------HP
-        self.act_num_values = 5#---------------------------------------------------------------------------------HP
+        self.act_num_values = 37#---------------------------------------------------------------------------------HP
         act_space_indices = {0}
         act_space = [(a[0], a[1]) for i, a in enumerate(zip(env.action_space.low,
                                                             env.action_space.high)) if i in act_space_indices]
         self.eff_mask = set()
         for i, a in enumerate(act_space):
             self.trc.add_trc(f"ACT_{i}", a[0], a[1], self.act_num_values, self.act_card)
-            self.eff_mask |= self.trc.vec_ranges[f"ACT_{i}"]
+            self.eff_mask |= self.trc.trcs[f"ACT_{i}"].vec_range
         self.eff_dim = len(self.eff_mask)
+        # self.trc.trcs["ACT_0"].print_trc()
         ##############################################################################
         self.obs_card = self.act_card#-----------------------------------------------------------------------------HP
         self.obs_num_values = self.act_num_values#-----------------------------------------------------------------HP
@@ -30,9 +31,9 @@ class Oracle:
         self.aff_mask = set()
         for i, a in enumerate(obs_space):
             self.trc.add_trc(f"OBS_{i}", a[0], a[1], self.obs_num_values, self.obs_card)
-            self.aff_mask |= self.trc.vec_ranges[f"OBS_{i}"]
-        # print(self.trc.trcs["OBS_0"])
-        # print(self.trc.get_value("OBS_0", {5, 4, 3}))
+            self.aff_mask |= self.trc.trcs[f"OBS_{i}"].vec_range
+        # self.trc.trcs["OBS_0"].print_trc()
+        # print(self.trc.trcs["OBS_0"].get_value({8, 9, 10}))
         ##############################################################################
         self.rew_max = 0
         self.rew_min = -16.2736044
@@ -40,7 +41,7 @@ class Oracle:
         self.rm_samples = []
         self.rm = 0
         self.trc.add_trc("REWD", -1, 1, self.act_num_values, self.act_card)
-        self.aff_mask |= self.trc.vec_ranges["REWD"]
+        self.aff_mask |= self.trc.trcs["REWD"].vec_range
         self.aff_dim = len(self.aff_mask)
         #############################################################################
         self.N = self.eff_dim + self.aff_dim
@@ -48,7 +49,6 @@ class Oracle:
         self.rda_period = 100#-------------------------------------------------------------------------------HP
         self.rda = 0
         self.rda_samples = []
-        self.rsA = random.sample(range(1000000), 1000000)
         self.m = [Matrix(self, a) for a in range(self.H)]
     def update(self):
         env.reset(seed = self.env_seed)
@@ -56,7 +56,7 @@ class Oracle:
             for a in self.m:
                 if a.ffi == -1:
                     self.bv = a.pv & self.eff_mask
-                    act = self.trc.get_value("ACT_0", self.bv)
+                    act = self.trc.trcs["ACT_0"].get_value(self.bv)
                     if not act: act = 0
                     obse, rewa, term, trun, info = env.step([act])
                     self.rew_prev = self.rew
@@ -73,9 +73,9 @@ class Oracle:
                     # if term or trun: obse, info = env.reset(seed = self.env_seed)
                     observation = [obse[b] for b in self.obs_space_indices]
                     iv = set()
-                    for j, b in enumerate(observation): iv |= self.trc.get_vector(f"OBS_{j}", b)
+                    for j, b in enumerate(observation): iv |= self.trc.trcs[f"OBS_{j}"].get_vector(b)
                     iv |= self.bv
-                    iv |= self.trc.get_vector("REWD", self.rda)
+                    iv |= self.trc.trcs["REWD"].get_vector(self.rda)
                 else: iv = self.m[a.ffi].pv.copy()
                 a.update(iv)
             self.cy += 1
@@ -131,33 +131,64 @@ class TRC:
     def __init__(self):
         self.start_idx = 0
         self.trcs = dict()
-        self.vec_ranges = dict()
+        self.rsA = random.sample(range(10000), 10000)
     def add_trc(self, label_in, min_val_in, max_val_in, num_vals_in, card_in):
-        range_idx_start = self.start_idx
-        v_range = (max_val_in - min_val_in)
-        v_inc = v_range / (num_vals_in - 1)
-        self.trcs[label_in] = dict()
-        for a in range(num_vals_in):
-            self.trcs[label_in][frozenset({self.start_idx + b for b in range(card_in)})] = min_val_in + (a * v_inc)
-            self.start_idx += 1
-        self.start_idx += card_in - 1
-        self.vec_ranges[label_in] = set(range(range_idx_start, self.start_idx))
-    def get_value(self, label_in, vec_in):
-        val = ct = 0
-        for k, v in self.trcs[label_in].items():
-            for _ in (k & vec_in):
-                val += v
-                ct += 1
-        return val / ct if ct > 0 else None
-    def get_vector(self, label_in, val_in):
-        min_d = 1000000
-        min_k = {}
-        for k, v in self.trcs[label_in].items():
-            dist = abs(val_in - v)
-            if dist < min_d:
-                min_k = set(k)
-                min_d = dist
-        return min_k.copy()
+        self.trcs[label_in] = self.TR(self, min_val_in, max_val_in, num_vals_in, card_in)
+    class TR:
+        def __init__(self, p_in, min_val_in, max_val_in, num_vals_in, card_in):
+            range_idx_start = p_in.start_idx
+            self.trc = dict()
+            self.min_val = min_val_in
+            self.max_val = max_val_in
+            self.card = card_in
+            self.v_inc = (max_val_in - min_val_in) / (num_vals_in - 1)
+            for a in range(num_vals_in):
+                self.trc[frozenset({p_in.start_idx + b for b in range(card_in)})] = min_val_in + (a * self.v_inc)
+                p_in.start_idx += 1
+            p_in.start_idx += card_in - 1
+            self.vec_range = set(range(range_idx_start, p_in.start_idx))
+            self.rsB = p_in.rsA.copy()
+        def get_value(self, vec_in):
+            val = ct = 0
+            for k, v in self.trc.items():
+                for _ in (k & vec_in):
+                    val += v
+                    ct += 1
+            return val / ct if ct > 0 else None
+        """
+        def get_vector(self, val_in):
+            out = set()
+            td = self.trc.copy()
+            brf = False
+            # while (len(out) < self.card) and (len(td) > 0) and not brf:
+            while not brf and (len(out) < self.card) and (len(td) > 0):
+                d = [(abs(val_in - v), k) for k, v in td.items()]
+                rs = self.rsB.copy()
+                d = sorted(d, key = lambda x: (x[0], rs.pop()))
+                if d[0][0] <= self.v_inc:
+                    out = set(d[0][1])
+                    brf = True
+                    # dim = round(len(d[0][1]) * (d[0][0] / self.v_inc))
+                    # if dim > 0:
+                    #     kA = sorted(list(d[0][1]))
+                    #     for i, a in enumerate(kA):
+                    #         if i < dim: out.add(a)
+                    # del td[d[0][1]]
+                else: brf = True
+            return out.copy()
+        """
+        def get_vector(self, val_in):
+            out = set()
+            if (val_in >= self.min_val) and (val_in <= self.max_val):
+                min_d = 1000000
+                for k, v in self.trc.items():
+                    dist = abs(val_in - v)
+                    if dist < min_d:
+                        out = set(k)
+                        min_d = dist
+            return out.copy()
+        def print_trc(self):
+            print(" | ".join([f"{str(k)} : {v:.2f}" for k, v in self.trc.items()]))
 oracle = Oracle()
 oracle.update()
 env.close()
